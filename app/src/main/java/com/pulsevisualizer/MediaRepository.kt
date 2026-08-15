@@ -24,7 +24,7 @@ object MediaRepository {
 
         listener = MediaSessionManager.OnActiveSessionsChangedListener { update(it ?: emptyList()) }
         try {
-            manager?.addOnActiveSessionsChangedListener(listener, null)
+            manager.addOnActiveSessionsChangedListener(listener!!, null)
             update(manager?.getActiveSessions(null) ?: emptyList())
         } catch (_: SecurityException) {
             // User must enable Notification Access for the app.
