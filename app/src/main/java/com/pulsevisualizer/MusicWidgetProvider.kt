@@ -6,10 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
 import android.widget.RemoteViews
 
-class MusicWidgetProvider : AppWidgetProvider() {
+class MusicWidgetProvider :
+    AppWidgetProvider() {
 
     companion object {
 
@@ -22,10 +22,13 @@ class MusicWidgetProvider : AppWidgetProvider() {
         private const val ACTION_NEXT =
             "com.pulsevisualizer.WIDGET_NEXT"
 
-        fun updateAll(context: Context) {
+        fun updateAll(
+            context: Context
+        ) {
 
             val manager =
-                AppWidgetManager.getInstance(context)
+                AppWidgetManager
+                    .getInstance(context)
 
             val component =
                 ComponentName(
@@ -34,9 +37,12 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 )
 
             val ids =
-                manager.getAppWidgetIds(component)
+                manager.getAppWidgetIds(
+                    component
+                )
 
             for (id in ids) {
+
                 updateWidget(
                     context,
                     manager,
@@ -67,7 +73,18 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
             views.setTextViewText(
                 R.id.widget_artist,
-                media.artist
+                media.artist.ifBlank {
+                    "Unknown artist"
+                }
+            )
+
+            views.setTextViewText(
+                R.id.widget_status,
+                if (media.playing) {
+                    "NOW PLAYING"
+                } else {
+                    "PAUSED"
+                }
             )
 
             views.setTextViewText(
@@ -79,14 +96,11 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 }
             )
 
-            val artwork =
-                media.artwork
-
-            if (artwork != null) {
+            if (media.artwork != null) {
 
                 views.setImageViewBitmap(
                     R.id.widget_artwork,
-                    artwork
+                    media.artwork
                 )
 
             } else {
@@ -123,7 +137,9 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
             views.setOnClickPendingIntent(
                 R.id.widget_artwork,
-                launchAppPendingIntent(context)
+                launchAppPendingIntent(
+                    context
+                )
             )
 
             manager.updateAppWidget(
@@ -138,8 +154,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
         ): PendingIntent {
 
             val intent =
-                Intent(context, MusicWidgetProvider::class.java)
-                    .setAction(action)
+                Intent(
+                    context,
+                    MusicWidgetProvider::class.java
+                ).setAction(action)
 
             return PendingIntent.getBroadcast(
                 context,
@@ -155,7 +173,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
         ): PendingIntent {
 
             val intent =
-                Intent(context, MainActivity::class.java)
+                Intent(
+                    context,
+                    MainActivity::class.java
+                )
 
             return PendingIntent.getActivity(
                 context,
@@ -199,21 +220,19 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
         when (intent.action) {
 
-            ACTION_PREVIOUS -> {
+            ACTION_PREVIOUS ->
                 MediaRepository.previous()
-            }
 
-            ACTION_PLAY_PAUSE -> {
-                MediaRepository.togglePlayPause()
-            }
+            ACTION_PLAY_PAUSE ->
+                MediaRepository
+                    .togglePlayPause()
 
-            ACTION_NEXT -> {
+            ACTION_NEXT ->
                 MediaRepository.next()
-            }
 
-            AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
+            AppWidgetManager
+                .ACTION_APPWIDGET_UPDATE ->
                 updateAll(context)
-            }
         }
     }
-}
+    }
