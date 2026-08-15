@@ -18,13 +18,14 @@ object MediaRepository {
     private var listener:
         MediaSessionManager.OnActiveSessionsChangedListener? = null
 
-    private var controllers = emptyList<MediaController>()
+    private var controllers: List<MediaController> = emptyList()
 
     private var selectedPackage: String? = null
 
     fun start(
         context: Context,
-        notificationListenerComponent: ComponentName
+        notificationListenerComponent: ComponentName =
+            ComponentName(context, MediaListenerService::class.java)
     ) {
         stop()
 
@@ -52,7 +53,6 @@ object MediaRepository {
                     notificationListenerComponent
                 )
             )
-
         } catch (_: SecurityException) {
             controllers = emptyList()
             _media.value = MediaInfo()
