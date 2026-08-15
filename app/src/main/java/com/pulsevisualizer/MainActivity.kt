@@ -1,9 +1,13 @@
 package com.pulsevisualizer
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -42,49 +46,113 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import kotlin.math.abs
-import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private val audioPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+
+            if (granted) {
+                requestAudioCapture()
+            }
+        }
+
+    private val captureLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+
+            if (
+                result.resultCode ==
+                    RESULT_OK &&
+                result.data != null
+            ) {
+
+                AudioCaptureManager.start(
+                    result.resultCode,
+                    result.data!!
+                )
+            }
+        }
+
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT call MediaRepository.start(this) here.
-         *
-         * MediaRepository is started by MediaListenerService when Android
-         * actually connects the notification listener. This gives the
-         * MediaSessionManager the correct NotificationListenerService
-         * ComponentName.
-         */
+        AudioCaptureManager.initialize(this)
 
         setContent {
+
             PulseTheme {
+
                 PulseApp(
                     openNotificationAccess = {
+
                         try {
+
                             startActivity(
                                 Intent(
                                     "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"
                                 )
                             )
+
                         } catch (_: Exception) {
                         }
                     },
+
                     openFullScreen = {
+
                         startActivity(
                             Intent(
                                 this,
                                 VisualizerActivity::class.java
                             )
                         )
+                    },
+
+                    enableVisualizer = {
+                        requestAudioCapture()
                     }
                 )
             }
         }
+
+        requestAudioCapture()
+    }
+
+    private fun requestAudioCapture() {
+
+        if (
+            checkSelfPermission(
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+
+            audioPermissionLauncher.launch(
+                Manifest.permission.RECORD_AUDIO
+            )
+
+            return
+        }
+
+        val manager =
+            getSystemService(
+                MediaProjectionManager::class.java
+            )
+
+        captureLauncher.launch(
+            manager.createScreenCaptureIntent()
+        )
+    }
+
+    override fun onDestroy() {
+
+        AudioCaptureManager.stop()
+
+        super.onDestroy()
     }
 }
 
@@ -92,13 +160,23 @@ class MainActivity : ComponentActivity() {
 fun PulseTheme(
     content: @Composable () -> Unit
 ) {
+
     MaterialTheme(
-        colorScheme = androidx.compose.material3.darkColorScheme(
-            background = Color(0xFF08080B),
-            surface = Color(0xFF141419),
-            primary = Color(0xFF9B7BFF),
-            secondary = Color(0xFFB9A5FF)
-        ),
+        colorScheme =
+            androidx.compose.material3.darkColorScheme(
+                background =
+                    Color(0xFF060609),
+
+                surface =
+                    Color(0xFF111116),
+
+                primary =
+                    Color(0xFF9B7BFF),
+
+                secondary =
+                    Color(0xFFB9A5FF)
+            ),
+
         content = content
     )
 }
@@ -106,16 +184,30 @@ fun PulseTheme(
 @Composable
 fun PulseApp(
     openNotificationAccess: () -> Unit,
-    openFullScreen: () -> Unit
+    openFullScreen: () -> Unit,
+    enableVisualizer: () -> Unit
 ) {
-    val media by MediaRepository.media.collectAsState()
+
+    val media by
+        MediaRepository.media.collectAsState()
+
+    val bands by
+        AudioCaptureManager.bands.collectAsState()
+
+    val capturing by
+        AudioCaptureManager.isCapturing.collectAsState()
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF08080B))
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Color(0xFF060609)
+                )
+                .padding(20.dp),
+
+        horizontalAlignment =
+            Alignment.CenterHorizontally
     ) {
 
         Text(
@@ -125,56 +217,79 @@ fun PulseApp(
         )
 
         Spacer(
-            modifier = Modifier.height(4.dp)
+            modifier =
+                Modifier.height(4.dp)
         )
 
         Text(
-            text = "Music controls & visualizer",
+            text = "Real-time music visualizer",
             color = Color.Gray,
             fontSize = 14.sp
         )
 
         Spacer(
-            modifier = Modifier.height(20.dp)
+            modifier =
+                Modifier.height(18.dp)
         )
 
-        if (media.title == "Nothing playing") {
+        if (
+            media.title ==
+            "Nothing playing"
+        ) {
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF15151A)
-                )
+                modifier =
+                    Modifier.fillMaxWidth(),
+
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            Color(0xFF15151A)
+                    )
             ) {
 
                 Column(
-                    modifier = Modifier.padding(20.dp)
+                    modifier =
+                        Modifier.padding(20.dp)
                 ) {
 
                     Text(
-                        text = "No media session detected",
-                        color = Color.White,
-                        fontSize = 18.sp
+                        text =
+                            "No media session detected",
+                        color =
+                            Color.White,
+                        fontSize =
+                            18.sp
                     )
 
                     Spacer(
-                        modifier = Modifier.height(8.dp)
+                        modifier =
+                            Modifier.height(8.dp)
                     )
 
                     Text(
-                        text = "Enable Notification Access so Android can expose active media sessions.",
-                        color = Color.Gray
+                        text =
+                            "Enable Notification Access so Android can expose your music player.",
+                        color =
+                            Color.Gray
                     )
 
                     Spacer(
-                        modifier = Modifier.height(14.dp)
+                        modifier =
+                            Modifier.height(14.dp)
                     )
 
                     Button(
-                        onClick = openNotificationAccess,
-                        modifier = Modifier.fillMaxWidth()
+                        onClick =
+                            openNotificationAccess,
+
+                        modifier =
+                            Modifier.fillMaxWidth()
                     ) {
-                        Text("Enable access")
+
+                        Text(
+                            "Enable access"
+                        )
                     }
                 }
             }
@@ -182,80 +297,120 @@ fun PulseApp(
         } else {
 
             Artwork(
-                bitmap = media.artwork
+                bitmap =
+                    media.artwork
             )
 
             Spacer(
-                modifier = Modifier.height(14.dp)
+                modifier =
+                    Modifier.height(14.dp)
             )
 
             Text(
-                text = media.title,
-                color = Color.White,
-                fontSize = 23.sp,
-                maxLines = 1
+                text =
+                    media.title,
+                color =
+                    Color.White,
+                fontSize =
+                    23.sp,
+                maxLines =
+                    1
             )
 
             Spacer(
-                modifier = Modifier.height(3.dp)
+                modifier =
+                    Modifier.height(3.dp)
             )
 
             Text(
-                text = media.artist,
-                color = Color.Gray,
-                fontSize = 16.sp,
-                maxLines = 1
+                text =
+                    media.artist,
+                color =
+                    Color.Gray,
+                fontSize =
+                    16.sp,
+                maxLines =
+                    1
             )
 
             Spacer(
-                modifier = Modifier.height(4.dp)
+                modifier =
+                    Modifier.height(14.dp)
             )
 
-            Text(
-                text = media.packageName,
-                color = Color.DarkGray,
-                fontSize = 11.sp,
-                maxLines = 1
-            )
-
-            Spacer(
-                modifier = Modifier.height(14.dp)
-            )
-
-            MiniVisualizer(
-                playing = media.playing
+            RealVisualizer(
+                bands =
+                    bands,
+                playing =
+                    media.playing
             )
 
             Spacer(
-                modifier = Modifier.height(12.dp)
+                modifier =
+                    Modifier.height(14.dp)
             )
 
             PlaybackControls(
-                playing = media.playing
+                playing =
+                    media.playing
             )
 
             Spacer(
-                modifier = Modifier.height(18.dp)
+                modifier =
+                    Modifier.height(16.dp)
             )
 
             Button(
-                onClick = openFullScreen,
-                modifier = Modifier.fillMaxWidth()
+                onClick =
+                    openFullScreen,
+
+                modifier =
+                    Modifier.fillMaxWidth()
             ) {
-                Text("Open full-screen visualizer")
+
+                Text(
+                    "Open full-screen visualizer"
+                )
             }
 
             Spacer(
-                modifier = Modifier.height(10.dp)
+                modifier =
+                    Modifier.height(8.dp)
+            )
+
+            OutlinedButton(
+                onClick =
+                    enableVisualizer,
+
+                modifier =
+                    Modifier.fillMaxWidth()
+            ) {
+
+                Text(
+                    if (capturing)
+                        "Audio capture active"
+                    else
+                        "Enable live audio"
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp)
             )
 
             OutlinedButton(
                 onClick = {
                     MediaRepository.next()
                 },
-                modifier = Modifier.fillMaxWidth()
+
+                modifier =
+                    Modifier.fillMaxWidth()
             ) {
-                Text("Skip to next song")
+
+                Text(
+                    "Skip to next song"
+                )
             }
         }
     }
@@ -265,38 +420,49 @@ fun PulseApp(
 fun Artwork(
     bitmap: android.graphics.Bitmap?
 ) {
+
     if (bitmap != null) {
 
         Image(
-            bitmap = bitmap.asImageBitmap(),
-            contentDescription = "Album artwork",
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(
-                    RoundedCornerShape(22.dp)
-                )
+            bitmap =
+                bitmap.asImageBitmap(),
+
+            contentDescription =
+                "Album artwork",
+
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(
+                        RoundedCornerShape(22.dp)
+                    )
         )
 
     } else {
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(
-                    RoundedCornerShape(22.dp)
-                )
-                .background(
-                    Color(0xFF202027)
-                ),
-            contentAlignment = Alignment.Center
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(
+                        RoundedCornerShape(22.dp)
+                    )
+                    .background(
+                        Color(0xFF202027)
+                    ),
+
+            contentAlignment =
+                Alignment.Center
         ) {
 
             Text(
                 text = "♪",
-                color = Color(0xFF9B7BFF),
-                fontSize = 80.sp
+                color =
+                    Color(0xFF9B7BFF),
+                fontSize =
+                    80.sp
             )
         }
     }
@@ -306,23 +472,33 @@ fun Artwork(
 fun PlaybackControls(
     playing: Boolean
 ) {
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier.fillMaxWidth(),
+
+        horizontalArrangement =
+            Arrangement.SpaceEvenly,
+
+        verticalAlignment =
+            Alignment.CenterVertically
     ) {
 
         IconButton(
             onClick = {
                 MediaRepository.previous()
             },
-            modifier = Modifier.size(58.dp)
+
+            modifier =
+                Modifier.size(58.dp)
         ) {
 
             Text(
                 text = "⏮",
-                color = Color.White,
-                fontSize = 30.sp
+                color =
+                    Color.White,
+                fontSize =
+                    30.sp
             )
         }
 
@@ -330,18 +506,28 @@ fun PlaybackControls(
             onClick = {
                 MediaRepository.togglePlayPause()
             },
-            modifier = Modifier
-                .size(68.dp)
-                .clip(CircleShape)
-                .background(
-                    Color(0xFF9B7BFF)
-                )
+
+            modifier =
+                Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Color(0xFF9B7BFF)
+                    )
         ) {
 
             Text(
-                text = if (playing) "Ⅱ" else "▶",
-                color = Color.White,
-                fontSize = if (playing) 25.sp else 27.sp
+                text =
+                    if (playing)
+                        "Ⅱ"
+                    else
+                        "▶",
+
+                color =
+                    Color.White,
+
+                fontSize =
+                    27.sp
             )
         }
 
@@ -349,108 +535,146 @@ fun PlaybackControls(
             onClick = {
                 MediaRepository.next()
             },
-            modifier = Modifier.size(58.dp)
+
+            modifier =
+                Modifier.size(58.dp)
         ) {
 
             Text(
                 text = "⏭",
-                color = Color.White,
-                fontSize = 30.sp
+                color =
+                    Color.White,
+                fontSize =
+                    30.sp
             )
         }
     }
 }
 
 @Composable
-fun MiniVisualizer(
+fun RealVisualizer(
+    bands: FloatArray,
     playing: Boolean
 ) {
-    var phase by remember {
-        mutableFloatStateOf(0f)
-    }
+
+    var pulse by
+        remember {
+            mutableFloatStateOf(0f)
+        }
 
     LaunchedEffect(playing) {
 
         while (playing) {
 
-            phase += 0.11f
+            pulse += 0.05f
 
             delay(16)
         }
     }
 
     Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(95.dp)
-            .clip(
-                RoundedCornerShape(18.dp)
-            )
-            .background(
-                Color(0xFF101016)
-            )
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .clip(
+                    RoundedCornerShape(22.dp)
+                )
+                .background(
+                    Color(0xFF0D0D13)
+                )
     ) {
 
-        val bars = 48
+        val count =
+            minOf(
+                48,
+                bands.size
+            )
+
         val gap = 3f
 
-        val barWidth =
-            (size.width - gap * (bars + 1)) / bars
+        val width =
+            (
+                size.width -
+                    gap *
+                    (count + 1)
+                ) / count
 
-        for (i in 0 until bars) {
+        for (i in 0 until count) {
 
-            val wave1 =
-                abs(
-                    sin(
-                        phase + i * 0.22f
+            val audio =
+                bands[i]
+                    .coerceIn(
+                        0f,
+                        1f
                     )
-                )
 
-            val wave2 =
-                abs(
-                    sin(
-                        phase * 0.63f +
-                            i * 0.11f
+            val height =
+                (
+                    size.height *
+                        (
+                            0.035f +
+                                audio *
+                                0.92f
+                            )
                     )
-                )
+                        .coerceAtMost(
+                            size.height
+                        )
 
-            val multiplier =
-                if (playing) {
-
-                    0.15f +
-                        wave1 * 0.55f +
-                        wave2 * 0.25f
-
-                } else {
-
-                    0.08f
-                }
-
-            val barHeight =
-                size.height * multiplier
-
-            val left =
+            val x =
                 gap +
-                    i * (
-                        barWidth + gap
+                    i *
+                    (
+                        width +
+                            gap
                     )
 
-            val top =
+            val y =
                 (
                     size.height -
-                        barHeight
+                        height
                 ) / 2f
 
-            drawRect(
-                color = Color(0xFF9B7BFF),
-                topLeft = androidx.compose.ui.geometry.Offset(
-                    left,
-                    top
-                ),
-                size = androidx.compose.ui.geometry.Size(
-                    barWidth,
-                    barHeight
-                )
+            drawRoundRect(
+                color =
+                    Color(
+                        red =
+                            0.45f +
+                                audio *
+                                0.25f,
+
+                        green =
+                            0.30f +
+                                audio *
+                                0.25f,
+
+                        blue =
+                            1f,
+
+                        alpha =
+                            0.75f +
+                                audio *
+                                0.25f
+                    ),
+
+                topLeft =
+                    androidx.compose.ui.geometry.Offset(
+                        x,
+                        y
+                    ),
+
+                size =
+                    androidx.compose.ui.geometry.Size(
+                        width,
+                        height
+                    ),
+
+                cornerRadius =
+                    androidx.compose.ui.geometry.CornerRadius(
+                        width / 2f,
+                        width / 2f
+                    )
             )
         }
     }
