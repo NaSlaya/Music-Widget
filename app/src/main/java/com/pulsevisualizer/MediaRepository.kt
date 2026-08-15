@@ -1,8 +1,11 @@
 package com.pulsevisualizer
 
+import android.content.ComponentName
 import android.content.Context
+import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
+import android.service.notification.NotificationListenerService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -22,14 +25,26 @@ object MediaRepository {
 
     private var appContext: Context? = null
 
+    private var listenerComponent: ComponentName? = null
+
     fun start(context: Context) {
         if (manager != null) return
 
-        appContext = context.applicationContext
+        val applicationContext = context.applicationContext
 
-        manager = context.getSystemService(
+        appContext = applicationContext
+
+        listenerComponent = ComponentName(
+            applicationContext,
+            MediaListenerService::class.java
+        )
+
+        manager = applicationContext.getSystemService(
             MediaSessionManager::class.java
         )
+
+        val component = listenerComponent ?: return
+        val sessionManager = manager ?: return
 
         val newListener =
             MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
@@ -39,18 +54,22 @@ object MediaRepository {
         listener = newListener
 
         try {
-            manager?.addOnActiveSessionsChangedListener(
+            sessionManager.addOnActiveSessionsChangedListener(
                 newListener,
-                null
+                component
             )
 
             update(
-                manager?.getActiveSessions(null)
-                    ?: emptyList()
+                sessionManager.getActiveSessions(component)
             )
 
         } catch (_: SecurityException) {
+            controllers = emptyList()
             _media.value = MediaInfo()
+
+            appContext?.let {
+                MusicWidgetProvider.updateAll(it)
+            }
         }
     }
 
@@ -70,6 +89,10 @@ object MediaRepository {
         manager = null
         controllers = emptyList()
         appContext = null
+        listenerComponent = null
+        selectedPackage = null
+
+        _media.value = MediaInfo()
     }
 
     fun selectPackage(pkg: String?) {
@@ -111,7 +134,9 @@ object MediaRepository {
 
         val state = controller.playbackState?.state
 
-        if (state == android.media.session.PlaybackState.STATE_PLAYING) {
+        if (
+            state == android.media.session.PlaybackState.STATE_PLAYING
+        ) {
             controller.transportControls.pause()
         } else {
             controller.transportControls.play()
@@ -169,31 +194,31 @@ object MediaRepository {
 
         val title =
             metadata?.getString(
-                android.media.MediaMetadata.METADATA_KEY_TITLE
+                MediaMetadata.METADATA_KEY_TITLE
             )
                 ?: metadata?.getString(
-                    android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE
+                    MediaMetadata.METADATA_KEY_DISPLAY_TITLE
                 )
                 ?: "Unknown title"
 
         val artist =
             metadata?.getString(
-                android.media.MediaMetadata.METADATA_KEY_ARTIST
+                MediaMetadata.METADATA_KEY_ARTIST
             )
                 ?: metadata?.getString(
-                    android.media.MediaMetadata.METADATA_KEY_ALBUM_ARTIST
+                    MediaMetadata.METADATA_KEY_ALBUM_ARTIST
                 )
                 ?: metadata?.getString(
-                    android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE
+                    MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE
                 )
                 ?: ""
 
         val artwork =
             metadata?.getBitmap(
-                android.media.MediaMetadata.METADATA_KEY_ART
+                MediaMetadata.METADATA_KEY_ART
             )
                 ?: metadata?.getBitmap(
-                    android.media.MediaMetadata.METADATA_KEY_ALBUM_ART
+                    MediaMetadata.METADATA_KEY_ALBUM_ART
                 )
 
         val playing =
