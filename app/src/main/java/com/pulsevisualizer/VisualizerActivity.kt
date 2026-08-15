@@ -19,7 +19,6 @@ import kotlin.math.sin
 class VisualizerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
 
         window.decorView.systemUiVisibility =
@@ -45,11 +44,8 @@ fun FullScreenVisualizer() {
     }
 
     LaunchedEffect(Unit) {
-
         while (true) {
-
             phase += 0.08f
-
             delay(16)
         }
     }
@@ -66,9 +62,7 @@ fun FullScreenVisualizer() {
         ) {
 
             val bars = 72
-
-            val barW =
-                size.width / bars
+            val barW = size.width / bars
 
             for (i in 0 until bars) {
 
@@ -84,16 +78,10 @@ fun FullScreenVisualizer() {
 
                 drawRoundRect(
                     color = Color(0xFF9B7BFF),
-                    topLeft =
-                        androidx.compose.ui.geometry.Offset(
-                            i * barW + 2f,
-                            size.height - h
-                        ),
-                    size =
-                        androidx.compose.ui.geometry.Size(
-                            barW - 5f,
-                            h
-                        ),
+                    left = i * barW + 2f,
+                    top = size.height - h,
+                    right = i * barW + barW - 3f,
+                    bottom = size.height,
                     cornerRadius =
                         androidx.compose.ui.geometry.CornerRadius(
                             8f,
@@ -107,8 +95,7 @@ fun FullScreenVisualizer() {
             Modifier
                 .fillMaxWidth()
                 .padding(28.dp),
-            horizontalAlignment =
-                Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
             Text(
@@ -132,45 +119,6 @@ fun FullScreenVisualizer() {
                 color = Color.Gray,
                 fontSize = 12.sp
             )
-        }
-    }
-}
-    LaunchedEffect(Unit) {
-        while (true) {
-            phase += 0.08f
-            delay(16)
-        }
-    }
-
-    Box(
-        Modifier.fillMaxSize().background(Color.Black),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val bars = 72
-            val barW = size.width / bars
-            for (i in 0 until bars) {
-                val wave = (sin(phase * 1.7f + i * 0.28f) + 1f) / 2f
-                val h = size.height * (0.03f + wave * 0.45f)
-                drawRoundRect(
-                    color = Color(0xFF9B7BFF),
-                    left = i * barW + 2f,
-                    top = size.height - h,
-                    right = i * barW + barW - 3f,
-                    bottom = size.height,
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
-                )
-            }
-        }
-
-        Column(
-            Modifier.fillMaxWidth().padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(media.title, color = Color.White, fontSize = 28.sp)
-            Text(media.artist, color = Color.LightGray, fontSize = 17.sp)
-            Spacer(Modifier.height(10.dp))
-            Text("Pulse Visualizer", color = Color.Gray, fontSize = 12.sp)
         }
     }
 }
