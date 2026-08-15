@@ -70,48 +70,49 @@ fun PulseApp(
     var showSources by remember { mutableStateOf(false) }
 
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF09090B))
             .padding(20.dp)
     ) {
         Text(
-            "Pulse Visualizer",
+            text = "Pulse Visualizer",
             fontSize = 30.sp,
             color = Color.White
         )
 
         Text(
-            "Music visualizer for any compatible media app",
+            text = "Music visualizer for any compatible media app",
             color = Color.Gray
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         if (media.title == "Nothing playing") {
+
             Card(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = Color(0xFF15151A)
                 )
             ) {
                 Column(
-                    Modifier.padding(20.dp)
+                    modifier = Modifier.padding(20.dp)
                 ) {
                     Text(
-                        "No media session detected",
+                        text = "No media session detected",
                         color = Color.White,
                         fontSize = 18.sp
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        "Enable Notification Access so Android can expose active media sessions.",
+                        text = "Enable Notification Access so Android can expose active media sessions.",
                         color = Color.Gray
                     )
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Button(
                         onClick = openNotificationAccess
@@ -120,34 +121,36 @@ fun PulseApp(
                     }
                 }
             }
+
         } else {
+
             Artwork(media.artwork)
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                media.title,
+                text = media.title,
                 color = Color.White,
                 fontSize = 24.sp
             )
 
             Text(
-                media.artist,
+                text = media.artist,
                 color = Color.Gray,
                 fontSize = 16.sp
             )
 
             Text(
-                "Source: ${media.packageName}",
+                text = "Source: ${media.packageName}",
                 color = Color.DarkGray,
                 fontSize = 12.sp
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             MiniVisualizer()
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Button(
                 onClick = openFullScreen,
@@ -156,7 +159,7 @@ fun PulseApp(
                 Text("Open full-screen visualizer")
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedButton(
                 onClick = {
@@ -169,7 +172,7 @@ fun PulseApp(
 
             if (showSources) {
                 Text(
-                    "The selected source system is prepared in this build; additional source filtering will be added in the next phase.",
+                    text = "The selected source system is prepared in this build.",
                     color = Color.Gray,
                     modifier = Modifier.padding(top = 10.dp)
                 )
@@ -183,6 +186,7 @@ fun Artwork(
     bitmap: android.graphics.Bitmap?
 ) {
     if (bitmap != null) {
+
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = "Album artwork",
@@ -191,9 +195,11 @@ fun Artwork(
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(20.dp))
         )
+
     } else {
+
         Box(
-            Modifier
+            modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(20.dp))
@@ -201,7 +207,7 @@ fun Artwork(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "♪",
+                text = "♪",
                 fontSize = 80.sp,
                 color = Color(0xFF9B7BFF)
             )
@@ -211,6 +217,7 @@ fun Artwork(
 
 @Composable
 fun MiniVisualizer() {
+
     var phase by remember {
         mutableFloatStateOf(0f)
     }
@@ -223,26 +230,35 @@ fun MiniVisualizer() {
     }
 
     Canvas(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .height(90.dp)
     ) {
+
         val bars = 42
-        val w = size.width / bars
+        val barWidth = size.width / bars
 
         for (i in 0 until bars) {
-            val wave = (sin(phase + i * 0.45f) + 1f) / 2f
-            val h = size.height * (0.15f + wave * 0.75f)
+
+            val wave =
+                (sin(phase + i * 0.45f) + 1f) / 2f
+
+            val barHeight =
+                size.height * (0.15f + wave * 0.75f)
 
             drawRoundRect(
                 color = Color(0xFF9B7BFF),
-                left = i * w + 2f,
-                top = size.height - h,
-                right = i * w + w - 3f,
-                bottom = size.height,
+                topLeft = androidx.compose.ui.geometry.Offset(
+                    x = i * barWidth + 2f,
+                    y = size.height - barHeight
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    width = barWidth - 5f,
+                    height = barHeight
+                ),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(
-                    6f,
-                    6f
+                    x = 6f,
+                    y = 6f
                 )
             )
         }
