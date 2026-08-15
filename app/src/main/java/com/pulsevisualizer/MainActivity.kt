@@ -50,19 +50,36 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        MediaRepository.start(this)
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT call MediaRepository.start(this) here.
+         *
+         * MediaRepository is started by MediaListenerService when Android
+         * actually connects the notification listener. This gives the
+         * MediaSessionManager the correct NotificationListenerService
+         * ComponentName.
+         */
 
         setContent {
             PulseTheme {
                 PulseApp(
                     openNotificationAccess = {
-                        startActivity(
-                            Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                        )
+                        try {
+                            startActivity(
+                                Intent(
+                                    "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"
+                                )
+                            )
+                        } catch (_: Exception) {
+                        }
                     },
                     openFullScreen = {
                         startActivity(
-                            Intent(this, VisualizerActivity::class.java)
+                            Intent(
+                                this,
+                                VisualizerActivity::class.java
+                            )
                         )
                     }
                 )
@@ -107,7 +124,9 @@ fun PulseApp(
             fontSize = 30.sp
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(
+            modifier = Modifier.height(4.dp)
+        )
 
         Text(
             text = "Music controls & visualizer",
@@ -115,7 +134,9 @@ fun PulseApp(
             fontSize = 14.sp
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(
+            modifier = Modifier.height(20.dp)
+        )
 
         if (media.title == "Nothing playing") {
 
@@ -125,23 +146,29 @@ fun PulseApp(
                     containerColor = Color(0xFF15151A)
                 )
             ) {
+
                 Column(
                     modifier = Modifier.padding(20.dp)
                 ) {
+
                     Text(
                         text = "No media session detected",
                         color = Color.White,
                         fontSize = 18.sp
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(
+                        modifier = Modifier.height(8.dp)
+                    )
 
                     Text(
                         text = "Enable Notification Access so Android can expose active media sessions.",
                         color = Color.Gray
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(
+                        modifier = Modifier.height(14.dp)
+                    )
 
                     Button(
                         onClick = openNotificationAccess,
@@ -154,9 +181,13 @@ fun PulseApp(
 
         } else {
 
-            Artwork(media.artwork)
+            Artwork(
+                bitmap = media.artwork
+            )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(
+                modifier = Modifier.height(14.dp)
+            )
 
             Text(
                 text = media.title,
@@ -165,7 +196,9 @@ fun PulseApp(
                 maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(
+                modifier = Modifier.height(3.dp)
+            )
 
             Text(
                 text = media.artist,
@@ -174,7 +207,9 @@ fun PulseApp(
                 maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(
+                modifier = Modifier.height(4.dp)
+            )
 
             Text(
                 text = media.packageName,
@@ -183,19 +218,25 @@ fun PulseApp(
                 maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(
+                modifier = Modifier.height(14.dp)
+            )
 
             MiniVisualizer(
                 playing = media.playing
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
 
             PlaybackControls(
                 playing = media.playing
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(
+                modifier = Modifier.height(18.dp)
+            )
 
             Button(
                 onClick = openFullScreen,
@@ -204,7 +245,9 @@ fun PulseApp(
                 Text("Open full-screen visualizer")
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(
+                modifier = Modifier.height(10.dp)
+            )
 
             OutlinedButton(
                 onClick = {
@@ -223,23 +266,33 @@ fun Artwork(
     bitmap: android.graphics.Bitmap?
 ) {
     if (bitmap != null) {
+
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = "Album artwork",
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(
+                    RoundedCornerShape(22.dp)
+                )
         )
+
     } else {
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF202027)),
+                .clip(
+                    RoundedCornerShape(22.dp)
+                )
+                .background(
+                    Color(0xFF202027)
+                ),
             contentAlignment = Alignment.Center
         ) {
+
             Text(
                 text = "♪",
                 color = Color(0xFF9B7BFF),
@@ -265,6 +318,7 @@ fun PlaybackControls(
             },
             modifier = Modifier.size(58.dp)
         ) {
+
             Text(
                 text = "⏮",
                 color = Color.White,
@@ -279,8 +333,11 @@ fun PlaybackControls(
             modifier = Modifier
                 .size(68.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF9B7BFF))
+                .background(
+                    Color(0xFF9B7BFF)
+                )
         ) {
+
             Text(
                 text = if (playing) "Ⅱ" else "▶",
                 color = Color.White,
@@ -294,6 +351,7 @@ fun PlaybackControls(
             },
             modifier = Modifier.size(58.dp)
         ) {
+
             Text(
                 text = "⏭",
                 color = Color.White,
@@ -312,8 +370,11 @@ fun MiniVisualizer(
     }
 
     LaunchedEffect(playing) {
+
         while (playing) {
+
             phase += 0.11f
+
             delay(16)
         }
     }
@@ -322,27 +383,63 @@ fun MiniVisualizer(
         modifier = Modifier
             .fillMaxWidth()
             .height(95.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF101016))
+            .clip(
+                RoundedCornerShape(18.dp)
+            )
+            .background(
+                Color(0xFF101016)
+            )
     ) {
+
         val bars = 48
         val gap = 3f
-        val barWidth = (size.width - gap * (bars + 1)) / bars
+
+        val barWidth =
+            (size.width - gap * (bars + 1)) / bars
 
         for (i in 0 until bars) {
-            val wave1 = abs(sin(phase + i * 0.22f))
-            val wave2 = abs(sin(phase * 0.63f + i * 0.11f))
 
-            val multiplier = if (playing) {
-                0.15f + wave1 * 0.55f + wave2 * 0.25f
-            } else {
-                0.08f
-            }
+            val wave1 =
+                abs(
+                    sin(
+                        phase + i * 0.22f
+                    )
+                )
 
-            val barHeight = size.height * multiplier
+            val wave2 =
+                abs(
+                    sin(
+                        phase * 0.63f +
+                            i * 0.11f
+                    )
+                )
 
-            val left = gap + i * (barWidth + gap)
-            val top = (size.height - barHeight) / 2f
+            val multiplier =
+                if (playing) {
+
+                    0.15f +
+                        wave1 * 0.55f +
+                        wave2 * 0.25f
+
+                } else {
+
+                    0.08f
+                }
+
+            val barHeight =
+                size.height * multiplier
+
+            val left =
+                gap +
+                    i * (
+                        barWidth + gap
+                    )
+
+            val top =
+                (
+                    size.height -
+                        barHeight
+                ) / 2f
 
             drawRect(
                 color = Color(0xFF9B7BFF),
