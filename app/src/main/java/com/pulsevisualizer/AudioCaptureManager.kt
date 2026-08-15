@@ -64,9 +64,7 @@ object AudioCaptureManager {
         FloatArray(BAND_COUNT)
 
     init {
-
         for (i in 0 until FFT_SIZE) {
-
             window[i] =
                 0.5 -
                     0.5 *
@@ -78,13 +76,10 @@ object AudioCaptureManager {
     }
 
     fun initialize(context: Context) {
-
-        appContext =
-            context.applicationContext
+        appContext = context.applicationContext
     }
 
     fun hasRecordPermission(): Boolean {
-
         if (!::appContext.isInitialized) {
             return false
         }
@@ -111,7 +106,6 @@ object AudioCaptureManager {
         stop()
 
         try {
-
             val manager =
                 appContext.getSystemService(
                     android.media.projection.MediaProjectionManager::class.java
@@ -127,7 +121,6 @@ object AudioCaptureManager {
 
             mediaProjection.registerCallback(
                 object : MediaProjection.Callback() {
-
                     override fun onStop() {
                         stop()
                     }
@@ -152,7 +145,9 @@ object AudioCaptureManager {
                     .setEncoding(
                         AudioFormat.ENCODING_PCM_16BIT
                     )
-                    .setSampleRate(SAMPLE_RATE)
+                    .setSampleRate(
+                        SAMPLE_RATE
+                    )
                     .setChannelMask(
                         AudioFormat.CHANNEL_IN_MONO
                     )
@@ -184,8 +179,8 @@ object AudioCaptureManager {
                 audioRecord.state !=
                 AudioRecord.STATE_INITIALIZED
             ) {
-
                 audioRecord.release()
+
                 projection?.stop()
                 projection = null
 
@@ -200,7 +195,6 @@ object AudioCaptureManager {
                 audioRecord.recordingState !=
                 AudioRecord.RECORDSTATE_RECORDING
             ) {
-
                 audioRecord.release()
                 recorder = null
 
@@ -215,26 +209,21 @@ object AudioCaptureManager {
 
             captureThread =
                 Thread {
-
                     captureLoop(audioRecord)
-
                 }.apply {
-
                     name = "PulseAudioCapture"
                     start()
                 }
 
-            true
+            return true
 
         } catch (_: SecurityException) {
-
             stop()
-            false
+            return false
 
         } catch (_: Exception) {
-
             stop()
-            false
+            return false
         }
     }
 
@@ -286,7 +275,6 @@ object AudioCaptureManager {
 
             val read =
                 try {
-
                     audioRecord.read(
                         samples,
                         0,
@@ -295,7 +283,6 @@ object AudioCaptureManager {
                     )
 
                 } catch (_: Exception) {
-
                     -1
                 }
 
@@ -304,7 +291,6 @@ object AudioCaptureManager {
             }
 
             if (read < FFT_SIZE) {
-
                 for (i in read until FFT_SIZE) {
                     samples[i] = 0
                 }
@@ -349,6 +335,7 @@ object AudioCaptureManager {
             FloatArray(BAND_COUNT)
 
         val minFrequency = 30.0
+
         val maxFrequency =
             SAMPLE_RATE.toDouble() / 2.0
 
@@ -395,10 +382,12 @@ object AudioCaptureManager {
             var total = 0.0
             var count = 0
 
-            for (bin in lowBin..max(
-                lowBin,
-                highBin
-            )) {
+            for (
+                bin in lowBin..max(
+                    lowBin,
+                    highBin
+                )
+            ) {
 
                 total += fftMagnitude[bin]
                 count++
@@ -425,10 +414,10 @@ object AudioCaptureManager {
                     (db + 55.0) /
                         55.0
                     )
-                        .coerceIn(
-                            0.0,
-                            1.0
-                        )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
 
             result[band] =
                 normalized.toFloat()
@@ -441,14 +430,11 @@ object AudioCaptureManager {
                 val target =
                     result[i]
 
-                /*
-                 * Fast attack.
-                 *
-                 * The visualiser responds immediately
-                 * to drums and transients.
-                 */
                 val attack =
-                    if (target > smoothed[i]) {
+                    if (
+                        target >
+                        smoothed[i]
+                    ) {
                         0.42f
                     } else {
                         0.12f
@@ -458,11 +444,8 @@ object AudioCaptureManager {
                     (
                         target -
                             smoothed[i]
-                        ) * attack
+                    ) * attack
 
-                /*
-                 * Peak indicator with decay.
-                 */
                 if (
                     smoothed[i] >
                     peaks[i]
@@ -482,10 +465,10 @@ object AudioCaptureManager {
                         smoothed[i] * 0.82f +
                             peaks[i] * 0.18f
                         )
-                            .coerceIn(
-                                0f,
-                                1f
-                            )
+                        .coerceIn(
+                            0f,
+                            1f
+                        )
             }
 
             _bands.value =
@@ -567,7 +550,9 @@ object AudioCaptureManager {
                 val half =
                     length / 2
 
-                for (k in 0 until half) {
+                for (
+                    k in 0 until half
+                ) {
 
                     val evenIndex =
                         i + k
