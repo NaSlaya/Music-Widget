@@ -6,11 +6,16 @@ class MediaListenerService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        MediaRepository.start(this)
+
+        MediaRepository.start(
+            context = this,
+            notificationListenerComponent = componentName
+        )
     }
 
     override fun onListenerDisconnected() {
         MediaRepository.stop()
+
         super.onListenerDisconnected()
     }
 }
