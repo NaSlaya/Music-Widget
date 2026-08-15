@@ -188,13 +188,6 @@ class MusicWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
 
-        /*
-         * Do NOT start MediaRepository here.
-         *
-         * The launcher must be able to instantiate the widget
-         * without initializing the media session.
-         */
-
         for (widgetId in appWidgetIds) {
 
             try {
