@@ -20,26 +20,25 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlin.math.abs
-import kotlin.math.sin
 
-class VisualizerActivity : ComponentActivity() {
+class VisualizerActivity :
+    ComponentActivity() {
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
+
+        super.onCreate(
+            savedInstanceState
+        )
 
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -47,7 +46,9 @@ class VisualizerActivity : ComponentActivity() {
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
 
         setContent {
+
             PulseTheme {
+
                 FullScreenVisualizer()
             }
         }
@@ -57,149 +58,211 @@ class VisualizerActivity : ComponentActivity() {
 @Composable
 fun FullScreenVisualizer() {
 
-    val media by MediaRepository.media.collectAsState()
+    val media by
+        MediaRepository.media.collectAsState()
 
-    var phase by remember {
-        mutableFloatStateOf(0f)
-    }
-
-    LaunchedEffect(media.playing) {
-        while (media.playing) {
-            phase += 0.08f
-            delay(16)
-        }
-    }
+    val bands by
+        AudioCaptureManager.bands.collectAsState()
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Color(0xFF030305)
+                )
     ) {
 
         Canvas(
-            modifier = Modifier.fillMaxSize()
+            modifier =
+                Modifier.fillMaxSize()
         ) {
 
-            val bars = 80
-            val gap = 4f
-            val barWidth =
-                (size.width - gap * (bars + 1)) / bars
+            val count =
+                minOf(
+                    48,
+                    bands.size
+                )
 
-            for (i in 0 until bars) {
+            val centerY =
+                size.height * 0.48f
 
-                val wave1 =
-                    abs(
-                        sin(
-                            phase * 1.8f +
-                                i * 0.21f
+            val gap =
+                4f
+
+            val width =
+                (
+                    size.width -
+                        gap *
+                        (count + 1)
+                    ) / count
+
+            for (i in 0 until count) {
+
+                val value =
+                    bands[i]
+                        .coerceIn(
+                            0f,
+                            1f
                         )
-                    )
 
-                val wave2 =
-                    abs(
-                        sin(
-                            phase * 0.72f +
-                                i * 0.07f
+                val maxHeight =
+                    size.height *
+                        0.34f
+
+                val height =
+                    (
+                        maxHeight *
+                            (
+                                0.025f +
+                                    value *
+                                    0.975f
+                                )
                         )
-                    )
-
-                val wave3 =
-                    abs(
-                        sin(
-                            phase * 0.35f +
-                                i * 0.13f
-                        )
-                    )
-
-                val amount =
-                    if (media.playing) {
-                        0.04f +
-                            wave1 * 0.34f +
-                            wave2 * 0.22f +
-                            wave3 * 0.18f
-                    } else {
-                        0.025f
-                    }
-
-                val barHeight =
-                    size.height * amount
+                            .coerceAtMost(
+                                maxHeight
+                            )
 
                 val x =
                     gap +
-                        i * (barWidth + gap)
+                        i *
+                        (
+                            width +
+                                gap
+                        )
 
-                val y =
-                    (size.height - barHeight) / 2f
+                val top =
+                    centerY -
+                        height
 
-                drawRect(
-                    color = Color(
-                        red = 0.45f,
-                        green = 0.32f,
-                        blue = 1f,
-                        alpha = 0.85f
-                    ),
-                    topLeft = androidx.compose.ui.geometry.Offset(
-                        x,
-                        y
-                    ),
-                    size = androidx.compose.ui.geometry.Size(
-                        barWidth,
-                        barHeight
-                    )
+                val bottom =
+                    centerY +
+                        height
+
+                drawRoundRect(
+                    color =
+                        Color(
+                            red =
+                                0.38f +
+                                    value *
+                                    0.35f,
+
+                            green =
+                                0.20f +
+                                    value *
+                                    0.35f,
+
+                            blue =
+                                1f,
+
+                            alpha =
+                                0.65f +
+                                    value *
+                                    0.35f
+                        ),
+
+                    topLeft =
+                        androidx.compose.ui.geometry.Offset(
+                            x,
+                            top
+                        ),
+
+                    size =
+                        androidx.compose.ui.geometry.Size(
+                            width,
+                            height * 2f
+                        ),
+
+                    cornerRadius =
+                        androidx.compose.ui.geometry.CornerRadius(
+                            width / 2f,
+                            width / 2f
+                        )
                 )
             }
         }
 
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = 28.dp,
-                    end = 28.dp,
-                    bottom = 35.dp
-                )
-                .align(Alignment.BottomCenter),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 28.dp,
+                        end = 28.dp,
+                        bottom = 35.dp
+                    )
+                    .align(
+                        Alignment.BottomCenter
+                    ),
+
+            horizontalAlignment =
+                Alignment.CenterHorizontally
         ) {
 
             Text(
-                text = media.title,
-                color = Color.White,
-                fontSize = 27.sp,
-                maxLines = 1
+                text =
+                    media.title,
+
+                color =
+                    Color.White,
+
+                fontSize =
+                    27.sp,
+
+                maxLines =
+                    1
             )
 
             Spacer(
-                modifier = Modifier.height(5.dp)
+                modifier =
+                    Modifier.height(5.dp)
             )
 
             Text(
-                text = media.artist,
-                color = Color.LightGray,
-                fontSize = 17.sp,
-                maxLines = 1
+                text =
+                    media.artist,
+
+                color =
+                    Color.LightGray,
+
+                fontSize =
+                    17.sp,
+
+                maxLines =
+                    1
             )
 
             Spacer(
-                modifier = Modifier.height(22.dp)
+                modifier =
+                    Modifier.height(22.dp)
             )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier.fillMaxWidth(),
+
+                horizontalArrangement =
+                    Arrangement.SpaceEvenly,
+
+                verticalAlignment =
+                    Alignment.CenterVertically
             ) {
 
                 IconButton(
                     onClick = {
                         MediaRepository.previous()
                     },
-                    modifier = Modifier.size(62.dp)
+
+                    modifier =
+                        Modifier.size(62.dp)
                 ) {
+
                     Text(
                         text = "⏮",
-                        color = Color.White,
-                        fontSize = 32.sp
+                        color =
+                            Color.White,
+                        fontSize =
+                            32.sp
                     )
                 }
 
@@ -207,22 +270,33 @@ fun FullScreenVisualizer() {
                     onClick = {
                         MediaRepository.togglePlayPause()
                     },
-                    modifier = Modifier
-                        .size(76.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Color(0xFF9B7BFF)
-                        )
+
+                    modifier =
+                        Modifier
+                            .size(76.dp)
+                            .clip(
+                                CircleShape
+                            )
+                            .background(
+                                Color(0xFF9B7BFF)
+                            )
                 ) {
+
                     Text(
                         text =
-                            if (media.playing) {
+                            if (
+                                media.playing
+                            ) {
                                 "Ⅱ"
                             } else {
                                 "▶"
                             },
-                        color = Color.White,
-                        fontSize = 28.sp
+
+                        color =
+                            Color.White,
+
+                        fontSize =
+                            28.sp
                     )
                 }
 
@@ -230,24 +304,35 @@ fun FullScreenVisualizer() {
                     onClick = {
                         MediaRepository.next()
                     },
-                    modifier = Modifier.size(62.dp)
+
+                    modifier =
+                        Modifier.size(62.dp)
                 ) {
+
                     Text(
                         text = "⏭",
-                        color = Color.White,
-                        fontSize = 32.sp
+                        color =
+                            Color.White,
+                        fontSize =
+                            32.sp
                     )
                 }
             }
 
             Spacer(
-                modifier = Modifier.height(14.dp)
+                modifier =
+                    Modifier.height(14.dp)
             )
 
             Text(
-                text = "PULSE VISUALIZER",
-                color = Color.Gray,
-                fontSize = 11.sp
+                text =
+                    "LIVE AUDIO SPECTRUM",
+
+                color =
+                    Color.Gray,
+
+                fontSize =
+                    11.sp
             )
         }
     }
