@@ -5,6 +5,12 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -24,18 +30,19 @@ object MediaRepository {
 
     private var appContext: Context? = null
 
-    /*
-     * The MediaController currently being observed.
-     */
-    private var callbackController: MediaController? = null
+    private var updateJob: Job? = null
 
     /*
-     * Callback used to receive live changes from Spotify, YouTube,
-     * YouTube Music, etc.
+     * These values let us detect changes even when the media
+     * application does not trigger an active-session change.
      */
-    private var controllerCallback: MediaController.Callback? = null
+    private var lastPackageName: String = ""
+    private var lastTitle: String = ""
+    private var lastArtist: String = ""
+    private var lastPlaying: Boolean = false
 
     fun start(context: Context) {
+
         if (manager != null) {
             return
         }
@@ -68,11 +75,57 @@ object MediaRepository {
                     ?: emptyList()
             )
 
+            /*
+             * Keep checking the currently active controller.
+             *
+             * Spotify, YouTube and other media applications do not
+             * always cause onActiveSessionsChanged() when a track
+             * changes, so this catches:
+             *
+             * - next song
+             * - previous song
+             * - pause
+             * - play
+             * - song finishing
+             * - artwork changes
+             */
+            updateJob?.cancel()
+
+            updateJob = CoroutineScope(
+                Dispatchers.Main.immediate
+            ).launch {
+
+                while (isActive) {
+
+                    try {
+
+                        val activeSessions =
+                            manager?.getActiveSessions(null)
+                                ?: emptyList()
+
+                        if (activeSessions.isNotEmpty()) {
+
+                            update(activeSessions)
+
+                        }
+
+                    } catch (_: SecurityException) {
+
+                        /*
+                         * Do not destroy the existing media state
+                         * just because access temporarily failed.
+                         */
+
+                    } catch (_: Exception) {
+                    }
+
+                    delay(500)
+                }
+            }
+
         } catch (_: SecurityException) {
 
             controllers = emptyList()
-
-            detachControllerCallback()
 
             _media.value = MediaInfo()
 
@@ -81,6 +134,9 @@ object MediaRepository {
     }
 
     fun stop() {
+
+        updateJob?.cancel()
+        updateJob = null
 
         try {
 
@@ -96,15 +152,20 @@ object MediaRepository {
         } catch (_: Exception) {
         }
 
-        detachControllerCallback()
-
         listener = null
 
         manager = null
 
         controllers = emptyList()
 
+        selectedPackage = null
+
         appContext = null
+
+        lastPackageName = ""
+        lastTitle = ""
+        lastArtist = ""
+        lastPlaying = false
 
         _media.value = MediaInfo()
     }
@@ -119,7 +180,9 @@ object MediaRepository {
     fun availablePackages(): List<String> {
 
         return controllers
-            .map { it.packageName }
+            .map {
+                it.packageName
+            }
             .distinct()
     }
 
@@ -135,33 +198,34 @@ object MediaRepository {
 
     fun play() {
 
-        val controller = currentController()
-            ?: return
-
-        controller.transportControls.play()
+        currentController()
+            ?.transportControls
+            ?.play()
 
         refresh()
     }
 
     fun pause() {
 
-        val controller = currentController()
-            ?: return
-
-        controller.transportControls.pause()
+        currentController()
+            ?.transportControls
+            ?.pause()
 
         refresh()
     }
 
     fun togglePlayPause() {
 
-        val controller = currentController()
-            ?: return
+        val controller =
+            currentController()
+                ?: return
 
         val state =
             controller.playbackState?.state
 
-        if (state == PlaybackState.STATE_PLAYING) {
+        if (
+            state == PlaybackState.STATE_PLAYING
+        ) {
 
             controller.transportControls.pause()
 
@@ -170,37 +234,58 @@ object MediaRepository {
             controller.transportControls.play()
         }
 
-        /*
-         * The controller callback will normally update this
-         * automatically. We also refresh immediately so the
-         * UI responds without waiting for the media application.
-         */
         refresh()
     }
 
     fun next() {
 
-        val controller = currentController()
-            ?: return
+        currentController()
+            ?.transportControls
+            ?.skipToNext()
 
-        controller.transportControls.skipToNext()
+        /*
+         * Give the media application a moment to update its
+         * metadata, then immediately refresh again.
+         */
+        CoroutineScope(
+            Dispatchers.Main.immediate
+        ).launch {
 
-        refresh()
+            delay(100)
+
+            refresh()
+
+            delay(400)
+
+            refresh()
+        }
     }
 
     fun previous() {
 
-        val controller = currentController()
-            ?: return
+        currentController()
+            ?.transportControls
+            ?.skipToPrevious()
 
-        controller.transportControls.skipToPrevious()
+        CoroutineScope(
+            Dispatchers.Main.immediate
+        ).launch {
 
-        refresh()
+            delay(100)
+
+            refresh()
+
+            delay(400)
+
+            refresh()
+        }
     }
 
-    fun refresh() {
+    private fun refresh() {
 
         update(controllers)
+
+        updateWidget()
     }
 
     private fun update(
@@ -219,39 +304,15 @@ object MediaRepository {
 
         if (controller == null) {
 
-            detachControllerCallback()
+            if (
+                _media.value.title != "Nothing playing"
+            ) {
 
-            _media.value = MediaInfo()
+                _media.value = MediaInfo()
+            }
 
             updateWidget()
 
-            return
-        }
-
-        /*
-         * If Android gave us a different MediaController,
-         * move the callback to the new controller.
-         */
-        if (callbackController !== controller) {
-
-            attachControllerCallback(controller)
-        }
-
-        updateFromController(controller)
-    }
-
-    private fun updateFromController(
-        controller: MediaController
-    ) {
-
-        /*
-         * Ignore callbacks from an old controller that has
-         * already been replaced.
-         */
-        if (
-            callbackController != null &&
-            callbackController !== controller
-        ) {
             return
         }
 
@@ -290,152 +351,65 @@ object MediaRepository {
                     MediaMetadata.METADATA_KEY_ALBUM_ART
                 )
 
-        val playbackState =
-            controller.playbackState?.state
-
         val playing =
-            playbackState == PlaybackState.STATE_PLAYING
+            controller.playbackState?.state ==
+                PlaybackState.STATE_PLAYING
 
-        _media.value = MediaInfo(
-            packageName = controller.packageName,
-            appName = controller.packageName,
-            title = title,
-            artist = artist,
-            artwork = artwork,
-            playing = playing
-        )
+        /*
+         * Only publish a new MediaInfo when something actually
+         * changed.
+         *
+         * This prevents unnecessary Compose/widget redraws
+         * every 500 ms.
+         */
+        val changed =
+            controller.packageName != lastPackageName ||
+                title != lastTitle ||
+                artist != lastArtist ||
+                playing != lastPlaying
 
-        updateWidget()
-    }
+        if (changed) {
 
-    /*
-     * Attach a live MediaController callback.
-     *
-     * This is the important part that was missing from the
-     * previous version.
-     */
-    private fun attachControllerCallback(
-        controller: MediaController
-    ) {
+            lastPackageName =
+                controller.packageName
 
-        detachControllerCallback()
+            lastTitle =
+                title
 
-        val callback =
-            object : MediaController.Callback() {
+            lastArtist =
+                artist
 
-                override fun onMetadataChanged(
-                    metadata: MediaMetadata?
-                ) {
+            lastPlaying =
+                playing
 
-                    /*
-                     * Metadata changes when a new song starts,
-                     * when Spotify/YouTube changes artwork, etc.
-                     */
-                    if (
-                        callbackController === controller
-                    ) {
+            _media.value = MediaInfo(
+                packageName = controller.packageName,
+                appName = controller.packageName,
+                title = title,
+                artist = artist,
+                artwork = artwork,
+                playing = playing
+            )
 
-                        updateFromController(controller)
-                    }
-                }
+            updateWidget()
 
-                override fun onPlaybackStateChanged(
-                    state: PlaybackState?
-                ) {
-
-                    /*
-                     * Playback changes when:
-                     *
-                     * Play is pressed
-                     * Pause is pressed
-                     * A song finishes
-                     * Playback resumes
-                     * Playback stops
-                     */
-                    if (
-                        callbackController === controller
-                    ) {
-
-                        updateFromController(controller)
-                    }
-                }
-
-                override fun onSessionDestroyed() {
-
-                    /*
-                     * The media application/session has gone away.
-                     * Remove the controller and look for another
-                     * available media session.
-                     */
-                    if (
-                        callbackController === controller
-                    ) {
-
-                        callbackController = null
-                        controllerCallback = null
-
-                        controllers =
-                            controllers.filter {
-                                it !== controller
-                            }
-
-                        update(controllers)
-                    }
-                }
-            }
-
-        callbackController = controller
-        controllerCallback = callback
-
-        try {
-
-            controller.registerCallback(callback)
-
-        } catch (_: Exception) {
-
-            /*
-             * Some media applications can destroy their session
-             * while the callback is being registered.
-             */
-            callbackController = null
-            controllerCallback = null
-        }
-    }
-
-    /*
-     * Remove the callback from the currently monitored
-     * MediaController.
-     */
-    private fun detachControllerCallback() {
-
-        val controller =
-            callbackController
-
-        val callback =
-            controllerCallback
-
-        if (
-            controller != null &&
-            callback != null
+        } else if (
+            artwork != null &&
+            _media.value.artwork !== artwork
         ) {
 
-            try {
+            /*
+             * Artwork can change independently of title/artist.
+             */
+            _media.value =
+                _media.value.copy(
+                    artwork = artwork
+                )
 
-                controller.unregisterCallback(callback)
-
-            } catch (_: Exception) {
-            }
+            updateWidget()
         }
-
-        callbackController = null
-
-        controllerCallback = null
     }
 
-    /*
-     * Update the home-screen widget whenever media information
-     * changes.
-     */
     private fun updateWidget() {
 
         appContext?.let { context ->
@@ -448,7 +422,7 @@ object MediaRepository {
 
             } catch (_: Exception) {
                 /*
-                 * Widget failures must never stop media
+                 * Widget errors must never prevent media
                  * detection.
                  */
             }
