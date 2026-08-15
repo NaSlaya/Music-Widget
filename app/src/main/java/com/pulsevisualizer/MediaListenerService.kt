@@ -11,6 +11,7 @@ class MediaListenerService : NotificationListenerService() {
     }
 
     override fun onListenerDisconnected() {
+
         MediaRepository.stop()
 
         super.onListenerDisconnected()
