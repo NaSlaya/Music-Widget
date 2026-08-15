@@ -12,8 +12,8 @@ android {
         applicationId = "com.pulsevisualizer"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
     }
 
     compileOptions {
@@ -35,9 +35,12 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2025.01.00")
+
+    val composeBom =
+        platform("androidx.compose:compose-bom:2025.01.00")
 
     implementation(composeBom)
+
     androidTestImplementation(composeBom)
 
     implementation("androidx.core:core-ktx:1.15.0")
@@ -49,7 +52,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
-
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    debugImplementation(
+        "androidx.compose.ui:ui-tooling"
+    )
 }
