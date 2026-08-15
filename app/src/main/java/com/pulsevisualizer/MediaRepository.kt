@@ -1,8 +1,6 @@
 package com.pulsevisualizer
 
-import android.content.ComponentName
 import android.content.Context
-import android.graphics.Bitmap
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,22 +16,20 @@ object MediaRepository {
     private var listener:
         MediaSessionManager.OnActiveSessionsChangedListener? = null
 
-    private var controllers: List<MediaController> = emptyList()
+    private var controllers = emptyList<MediaController>()
 
     private var selectedPackage: String? = null
 
-    fun start(
-        context: Context,
-        notificationListenerComponent: ComponentName =
-            ComponentName(context, MediaListenerService::class.java)
-    ) {
-        stop()
+    private var appContext: Context? = null
 
-        val sessionManager =
-            context.getSystemService(MediaSessionManager::class.java)
-                ?: return
+    fun start(context: Context) {
+        if (manager != null) return
 
-        manager = sessionManager
+        appContext = context.applicationContext
+
+        manager = context.getSystemService(
+            MediaSessionManager::class.java
+        )
 
         val newListener =
             MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
@@ -43,32 +39,27 @@ object MediaRepository {
         listener = newListener
 
         try {
-            sessionManager.addOnActiveSessionsChangedListener(
+            manager?.addOnActiveSessionsChangedListener(
                 newListener,
-                notificationListenerComponent
+                null
             )
 
             update(
-                sessionManager.getActiveSessions(
-                    notificationListenerComponent
-                )
+                manager?.getActiveSessions(null)
+                    ?: emptyList()
             )
+
         } catch (_: SecurityException) {
-            controllers = emptyList()
             _media.value = MediaInfo()
         }
     }
 
     fun stop() {
         try {
-            val currentManager = manager
             val currentListener = listener
 
-            if (
-                currentManager != null &&
-                currentListener != null
-            ) {
-                currentManager.removeOnActiveSessionsChangedListener(
+            if (currentListener != null) {
+                manager?.removeOnActiveSessionsChangedListener(
                     currentListener
                 )
             }
@@ -78,7 +69,7 @@ object MediaRepository {
         listener = null
         manager = null
         controllers = emptyList()
-        _media.value = MediaInfo()
+        appContext = null
     }
 
     fun selectPackage(pkg: String?) {
@@ -90,6 +81,67 @@ object MediaRepository {
         return controllers
             .map { it.packageName }
             .distinct()
+    }
+
+    private fun currentController(): MediaController? {
+        return controllers.firstOrNull {
+            selectedPackage == null ||
+                it.packageName == selectedPackage
+        } ?: controllers.firstOrNull()
+    }
+
+    fun play() {
+        currentController()
+            ?.transportControls
+            ?.play()
+
+        refresh()
+    }
+
+    fun pause() {
+        currentController()
+            ?.transportControls
+            ?.pause()
+
+        refresh()
+    }
+
+    fun togglePlayPause() {
+        val controller = currentController() ?: return
+
+        val state = controller.playbackState?.state
+
+        if (state == android.media.session.PlaybackState.STATE_PLAYING) {
+            controller.transportControls.pause()
+        } else {
+            controller.transportControls.play()
+        }
+
+        refresh()
+    }
+
+    fun next() {
+        currentController()
+            ?.transportControls
+            ?.skipToNext()
+
+        refresh()
+    }
+
+    fun previous() {
+        currentController()
+            ?.transportControls
+            ?.skipToPrevious()
+
+        refresh()
+    }
+
+    private fun refresh() {
+        update(controllers)
+
+        appContext?.let {
+            MusicWidgetProvider.updateAll(it)
+        }
     }
 
     private fun update(
@@ -105,6 +157,11 @@ object MediaRepository {
 
         if (controller == null) {
             _media.value = MediaInfo()
+
+            appContext?.let {
+                MusicWidgetProvider.updateAll(it)
+            }
+
             return
         }
 
@@ -131,7 +188,7 @@ object MediaRepository {
                 )
                 ?: ""
 
-        val artwork: Bitmap? =
+        val artwork =
             metadata?.getBitmap(
                 android.media.MediaMetadata.METADATA_KEY_ART
             )
@@ -151,5 +208,9 @@ object MediaRepository {
             artwork = artwork,
             playing = playing
         )
+
+        appContext?.let {
+            MusicWidgetProvider.updateAll(it)
+        }
     }
 }
