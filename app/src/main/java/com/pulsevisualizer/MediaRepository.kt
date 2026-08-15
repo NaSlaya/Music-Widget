@@ -1,5 +1,6 @@
 package com.pulsevisualizer
 
+import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.session.MediaController
@@ -21,12 +22,17 @@ object MediaRepository {
 
     private var selectedPackage: String? = null
 
-    fun start(context: Context) {
-        if (manager != null) return
+    fun start(
+        context: Context,
+        notificationListenerComponent: ComponentName
+    ) {
+        stop()
 
-        manager = context.getSystemService(
-            MediaSessionManager::class.java
-        )
+        val sessionManager =
+            context.getSystemService(MediaSessionManager::class.java)
+                ?: return
+
+        manager = sessionManager
 
         val newListener =
             MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
@@ -36,26 +42,33 @@ object MediaRepository {
         listener = newListener
 
         try {
-            manager?.addOnActiveSessionsChangedListener(
+            sessionManager.addOnActiveSessionsChangedListener(
                 newListener,
-                null
+                notificationListenerComponent
             )
 
             update(
-                manager?.getActiveSessions(null)
-                    ?: emptyList()
+                sessionManager.getActiveSessions(
+                    notificationListenerComponent
+                )
             )
+
         } catch (_: SecurityException) {
-            // Notification Access must be enabled by the user.
+            controllers = emptyList()
+            _media.value = MediaInfo()
         }
     }
 
     fun stop() {
         try {
+            val currentManager = manager
             val currentListener = listener
 
-            if (currentListener != null) {
-                manager?.removeOnActiveSessionsChangedListener(
+            if (
+                currentManager != null &&
+                currentListener != null
+            ) {
+                currentManager.removeOnActiveSessionsChangedListener(
                     currentListener
                 )
             }
@@ -64,6 +77,8 @@ object MediaRepository {
 
         listener = null
         manager = null
+        controllers = emptyList()
+        _media.value = MediaInfo()
     }
 
     fun selectPackage(pkg: String?) {
@@ -86,8 +101,7 @@ object MediaRepository {
             list.firstOrNull {
                 selectedPackage == null ||
                     it.packageName == selectedPackage
-            }
-                ?: list.firstOrNull()
+            } ?: list.firstOrNull()
 
         if (controller == null) {
             _media.value = MediaInfo()
@@ -117,7 +131,7 @@ object MediaRepository {
                 )
                 ?: ""
 
-        val artwork =
+        val artwork: Bitmap? =
             metadata?.getBitmap(
                 android.media.MediaMetadata.METADATA_KEY_ART
             )
@@ -125,15 +139,17 @@ object MediaRepository {
                     android.media.MediaMetadata.METADATA_KEY_ALBUM_ART
                 )
 
+        val playing =
+            controller.playbackState?.state ==
+                android.media.session.PlaybackState.STATE_PLAYING
+
         _media.value = MediaInfo(
             packageName = controller.packageName,
             appName = controller.packageName,
             title = title,
             artist = artist,
             artwork = artwork,
-            playing =
-                controller.playbackState?.state ==
-                    android.media.session.PlaybackState.STATE_PLAYING
+            playing = playing
         )
     }
 }
