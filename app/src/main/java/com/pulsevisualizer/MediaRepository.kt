@@ -1,11 +1,10 @@
 package com.pulsevisualizer
 
-import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
-import android.service.notification.NotificationListenerService
+import android.media.session.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -25,172 +24,239 @@ object MediaRepository {
 
     private var appContext: Context? = null
 
-    private var listenerComponent: ComponentName? = null
+    /*
+     * The MediaController currently being observed.
+     */
+    private var callbackController: MediaController? = null
+
+    /*
+     * Callback used to receive live changes from Spotify, YouTube,
+     * YouTube Music, etc.
+     */
+    private var controllerCallback: MediaController.Callback? = null
 
     fun start(context: Context) {
-        if (manager != null) return
+        if (manager != null) {
+            return
+        }
 
-        val applicationContext = context.applicationContext
+        appContext = context.applicationContext
 
-        appContext = applicationContext
-
-        listenerComponent = ComponentName(
-            applicationContext,
-            MediaListenerService::class.java
-        )
-
-        manager = applicationContext.getSystemService(
+        manager = context.getSystemService(
             MediaSessionManager::class.java
         )
 
-        val component = listenerComponent ?: return
-        val sessionManager = manager ?: return
-
         val newListener =
             MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
-                update(sessions ?: emptyList())
+
+                update(
+                    sessions ?: emptyList()
+                )
             }
 
         listener = newListener
 
         try {
-            sessionManager.addOnActiveSessionsChangedListener(
+
+            manager?.addOnActiveSessionsChangedListener(
                 newListener,
-                component
+                null
             )
 
             update(
-                sessionManager.getActiveSessions(component)
+                manager?.getActiveSessions(null)
+                    ?: emptyList()
             )
 
         } catch (_: SecurityException) {
+
             controllers = emptyList()
+
+            detachControllerCallback()
+
             _media.value = MediaInfo()
 
-            appContext?.let {
-                MusicWidgetProvider.updateAll(it)
-            }
+            updateWidget()
         }
     }
 
     fun stop() {
+
         try {
+
             val currentListener = listener
 
             if (currentListener != null) {
+
                 manager?.removeOnActiveSessionsChangedListener(
                     currentListener
                 )
             }
+
         } catch (_: Exception) {
         }
 
+        detachControllerCallback()
+
         listener = null
+
         manager = null
+
         controllers = emptyList()
+
         appContext = null
-        listenerComponent = null
-        selectedPackage = null
 
         _media.value = MediaInfo()
     }
 
     fun selectPackage(pkg: String?) {
+
         selectedPackage = pkg
+
         update(controllers)
     }
 
     fun availablePackages(): List<String> {
+
         return controllers
             .map { it.packageName }
             .distinct()
     }
 
     private fun currentController(): MediaController? {
+
         return controllers.firstOrNull {
+
             selectedPackage == null ||
                 it.packageName == selectedPackage
+
         } ?: controllers.firstOrNull()
     }
 
     fun play() {
-        currentController()
-            ?.transportControls
-            ?.play()
+
+        val controller = currentController()
+            ?: return
+
+        controller.transportControls.play()
 
         refresh()
     }
 
     fun pause() {
-        currentController()
-            ?.transportControls
-            ?.pause()
+
+        val controller = currentController()
+            ?: return
+
+        controller.transportControls.pause()
 
         refresh()
     }
 
     fun togglePlayPause() {
-        val controller = currentController() ?: return
 
-        val state = controller.playbackState?.state
+        val controller = currentController()
+            ?: return
 
-        if (
-            state == android.media.session.PlaybackState.STATE_PLAYING
-        ) {
+        val state =
+            controller.playbackState?.state
+
+        if (state == PlaybackState.STATE_PLAYING) {
+
             controller.transportControls.pause()
+
         } else {
+
             controller.transportControls.play()
         }
 
+        /*
+         * The controller callback will normally update this
+         * automatically. We also refresh immediately so the
+         * UI responds without waiting for the media application.
+         */
         refresh()
     }
 
     fun next() {
-        currentController()
-            ?.transportControls
-            ?.skipToNext()
+
+        val controller = currentController()
+            ?: return
+
+        controller.transportControls.skipToNext()
 
         refresh()
     }
 
     fun previous() {
-        currentController()
-            ?.transportControls
-            ?.skipToPrevious()
+
+        val controller = currentController()
+            ?: return
+
+        controller.transportControls.skipToPrevious()
 
         refresh()
     }
 
-    private fun refresh() {
-        update(controllers)
+    fun refresh() {
 
-        appContext?.let {
-            MusicWidgetProvider.updateAll(it)
-        }
+        update(controllers)
     }
 
     private fun update(
         list: List<MediaController>
     ) {
+
         controllers = list
 
         val controller =
             list.firstOrNull {
+
                 selectedPackage == null ||
                     it.packageName == selectedPackage
+
             } ?: list.firstOrNull()
 
         if (controller == null) {
+
+            detachControllerCallback()
+
             _media.value = MediaInfo()
 
-            appContext?.let {
-                MusicWidgetProvider.updateAll(it)
-            }
+            updateWidget()
 
             return
         }
 
-        val metadata = controller.metadata
+        /*
+         * If Android gave us a different MediaController,
+         * move the callback to the new controller.
+         */
+        if (callbackController !== controller) {
+
+            attachControllerCallback(controller)
+        }
+
+        updateFromController(controller)
+    }
+
+    private fun updateFromController(
+        controller: MediaController
+    ) {
+
+        /*
+         * Ignore callbacks from an old controller that has
+         * already been replaced.
+         */
+        if (
+            callbackController != null &&
+            callbackController !== controller
+        ) {
+            return
+        }
+
+        val metadata =
+            controller.metadata
 
         val title =
             metadata?.getString(
@@ -198,6 +264,9 @@ object MediaRepository {
             )
                 ?: metadata?.getString(
                     MediaMetadata.METADATA_KEY_DISPLAY_TITLE
+                )
+                ?: metadata?.getString(
+                    MediaMetadata.METADATA_KEY_ALBUM
                 )
                 ?: "Unknown title"
 
@@ -221,9 +290,11 @@ object MediaRepository {
                     MediaMetadata.METADATA_KEY_ALBUM_ART
                 )
 
+        val playbackState =
+            controller.playbackState?.state
+
         val playing =
-            controller.playbackState?.state ==
-                android.media.session.PlaybackState.STATE_PLAYING
+            playbackState == PlaybackState.STATE_PLAYING
 
         _media.value = MediaInfo(
             packageName = controller.packageName,
@@ -234,8 +305,153 @@ object MediaRepository {
             playing = playing
         )
 
-        appContext?.let {
-            MusicWidgetProvider.updateAll(it)
+        updateWidget()
+    }
+
+    /*
+     * Attach a live MediaController callback.
+     *
+     * This is the important part that was missing from the
+     * previous version.
+     */
+    private fun attachControllerCallback(
+        controller: MediaController
+    ) {
+
+        detachControllerCallback()
+
+        val callback =
+            object : MediaController.Callback() {
+
+                override fun onMetadataChanged(
+                    metadata: MediaMetadata?
+                ) {
+
+                    /*
+                     * Metadata changes when a new song starts,
+                     * when Spotify/YouTube changes artwork, etc.
+                     */
+                    if (
+                        callbackController === controller
+                    ) {
+
+                        updateFromController(controller)
+                    }
+                }
+
+                override fun onPlaybackStateChanged(
+                    state: PlaybackState?
+                ) {
+
+                    /*
+                     * Playback changes when:
+                     *
+                     * Play is pressed
+                     * Pause is pressed
+                     * A song finishes
+                     * Playback resumes
+                     * Playback stops
+                     */
+                    if (
+                        callbackController === controller
+                    ) {
+
+                        updateFromController(controller)
+                    }
+                }
+
+                override fun onSessionDestroyed() {
+
+                    /*
+                     * The media application/session has gone away.
+                     * Remove the controller and look for another
+                     * available media session.
+                     */
+                    if (
+                        callbackController === controller
+                    ) {
+
+                        callbackController = null
+                        controllerCallback = null
+
+                        controllers =
+                            controllers.filter {
+                                it !== controller
+                            }
+
+                        update(controllers)
+                    }
+                }
+            }
+
+        callbackController = controller
+        controllerCallback = callback
+
+        try {
+
+            controller.registerCallback(callback)
+
+        } catch (_: Exception) {
+
+            /*
+             * Some media applications can destroy their session
+             * while the callback is being registered.
+             */
+            callbackController = null
+            controllerCallback = null
+        }
+    }
+
+    /*
+     * Remove the callback from the currently monitored
+     * MediaController.
+     */
+    private fun detachControllerCallback() {
+
+        val controller =
+            callbackController
+
+        val callback =
+            controllerCallback
+
+        if (
+            controller != null &&
+            callback != null
+        ) {
+
+            try {
+
+                controller.unregisterCallback(callback)
+
+            } catch (_: Exception) {
+            }
+        }
+
+        callbackController = null
+
+        controllerCallback = null
+    }
+
+    /*
+     * Update the home-screen widget whenever media information
+     * changes.
+     */
+    private fun updateWidget() {
+
+        appContext?.let { context ->
+
+            try {
+
+                MusicWidgetProvider.updateAll(
+                    context
+                )
+
+            } catch (_: Exception) {
+                /*
+                 * Widget failures must never stop media
+                 * detection.
+                 */
+            }
         }
     }
 }
