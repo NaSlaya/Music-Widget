@@ -43,8 +43,6 @@ class MusicWidgetProvider : AppWidgetProvider() {
                         id
                     )
                 } catch (_: Exception) {
-                    // Never allow a widget update failure
-                    // to crash the application.
                 }
             }
         }
@@ -55,23 +53,34 @@ class MusicWidgetProvider : AppWidgetProvider() {
             widgetId: Int
         ) {
 
-            val media =
-                MediaRepository.media.value
+            val media = MediaRepository.media.value
 
-            val views =
-                RemoteViews(
-                    context.packageName,
-                    R.layout.music_widget
-                )
+            val views = RemoteViews(
+                context.packageName,
+                R.layout.music_widget
+            )
 
             views.setTextViewText(
                 R.id.widget_title,
-                media.title
+                media.title.ifBlank {
+                    "Nothing playing"
+                }
             )
 
             views.setTextViewText(
                 R.id.widget_artist,
-                media.artist
+                media.artist.ifBlank {
+                    "Unknown artist"
+                }
+            )
+
+            views.setTextViewText(
+                R.id.widget_status,
+                if (media.playing) {
+                    "NOW PLAYING"
+                } else {
+                    "PAUSED"
+                }
             )
 
             views.setTextViewText(
@@ -138,13 +147,12 @@ class MusicWidgetProvider : AppWidgetProvider() {
             action: String
         ): PendingIntent {
 
-            val intent =
-                Intent(
-                    context,
-                    MusicWidgetProvider::class.java
-                ).apply {
-                    this.action = action
-                }
+            val intent = Intent(
+                context,
+                MusicWidgetProvider::class.java
+            ).apply {
+                this.action = action
+            }
 
             return PendingIntent.getBroadcast(
                 context,
@@ -159,11 +167,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
             context: Context
         ): PendingIntent {
 
-            val intent =
-                Intent(
-                    context,
-                    MainActivity::class.java
-                )
+            val intent = Intent(
+                context,
+                MainActivity::class.java
+            )
 
             return PendingIntent.getActivity(
                 context,
@@ -182,16 +189,10 @@ class MusicWidgetProvider : AppWidgetProvider() {
     ) {
 
         /*
-         * IMPORTANT:
-         *
          * Do NOT start MediaRepository here.
          *
-         * Samsung's launcher calls onUpdate while adding the
-         * widget. Starting the MediaSession/notification-listener
-         * machinery at this exact point can cause the launcher to
-         * reject the widget with "Couldn't add widget".
-         *
-         * The main application starts MediaRepository separately.
+         * The launcher must be able to instantiate the widget
+         * without initializing the media session.
          */
 
         for (widgetId in appWidgetIds) {
@@ -205,7 +206,6 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 )
 
             } catch (_: Exception) {
-                // Prevent widget creation from crashing.
             }
         }
     }
@@ -225,6 +225,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
             ACTION_PREVIOUS -> {
 
                 MediaRepository.start(context)
+
                 MediaRepository.previous()
 
                 updateAll(context)
@@ -233,6 +234,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
             ACTION_PLAY_PAUSE -> {
 
                 MediaRepository.start(context)
+
                 MediaRepository.togglePlayPause()
 
                 updateAll(context)
@@ -241,6 +243,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
             ACTION_NEXT -> {
 
                 MediaRepository.start(context)
+
                 MediaRepository.next()
 
                 updateAll(context)
