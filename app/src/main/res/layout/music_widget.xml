@@ -4,10 +4,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#090A10"
     android:padding="2dp">
 
-    <!-- Premium background -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -15,7 +13,8 @@
         android:padding="14dp"
         android:background="@drawable/widget_background">
 
-        <!-- Top glass section -->
+        <!-- Song information -->
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -24,6 +23,7 @@
             android:gravity="center_vertical">
 
             <!-- Album artwork -->
+
             <FrameLayout
                 android:layout_width="82dp"
                 android:layout_height="82dp"
@@ -39,7 +39,8 @@
 
             </FrameLayout>
 
-            <!-- Song information -->
+            <!-- Text -->
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -51,10 +52,10 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="NOW PLAYING"
-                    android:textColor="#B5B9FF"
+                    android:textColor="#AEB4FF"
                     android:textSize="9sp"
                     android:textStyle="bold"
-                    android:letterSpacing="0.15" />
+                    android:letterSpacing="0.12" />
 
                 <TextView
                     android:id="@+id/widget_title"
@@ -62,7 +63,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="5dp"
                     android:text="Nothing playing"
-                    android:textColor="#FFFFFFFF"
+                    android:textColor="#FFFFFF"
                     android:textSize="17sp"
                     android:textStyle="bold"
                     android:maxLines="2"
@@ -72,9 +73,9 @@
                     android:id="@+id/widget_artist"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
+                    android:layout_marginTop="4dp"
                     android:text="Unknown artist"
-                    android:textColor="#B8BAC6"
+                    android:textColor="#B8BBC9"
                     android:textSize="12sp"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -84,23 +85,30 @@
         </LinearLayout>
 
         <!-- Visualiser -->
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="34dp"
             android:gravity="bottom|center_horizontal"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
 
             <View
                 android:layout_width="4dp"
-                android:layout_height="10dp"
+                android:layout_height="9dp"
                 android:layout_margin="2dp"
                 android:background="@drawable/widget_bar" />
 
             <View
                 android:layout_width="4dp"
-                android:layout_height="18dp"
+                android:layout_height="15dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/widget_bar" />
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="22dp"
                 android:layout_margin="2dp"
                 android:background="@drawable/widget_bar" />
 
@@ -112,7 +120,31 @@
 
             <View
                 android:layout_width="4dp"
-                android:layout_height="25dp"
+                android:layout_height="27dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/widget_bar" />
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="18dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/widget_bar" />
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="30dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/widget_bar" />
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="21dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/widget_bar" />
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="28dp"
                 android:layout_margin="2dp"
                 android:background="@drawable/widget_bar" />
 
@@ -124,37 +156,7 @@
 
             <View
                 android:layout_width="4dp"
-                android:layout_height="29dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="20dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="27dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="14dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
                 android:layout_height="23dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="17dp"
                 android:layout_margin="2dp"
                 android:background="@drawable/widget_bar" />
 
@@ -164,13 +166,20 @@
                 android:layout_margin="2dp"
                 android:background="@drawable/widget_bar" />
 
+            <View
+                android:layout_width="4dp"
+                android:layout_height="19dp"
+                android:layout_margin="2dp"
+                android:background="@drawable/widget_bar" />
+
         </LinearLayout>
 
-        <!-- Controls -->
+        <!-- Playback controls -->
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            android:layout_marginTop="5dp"
+            android:layout_marginTop="6dp"
             android:gravity="center"
             android:orientation="horizontal">
 
@@ -180,10 +189,11 @@
                 android:layout_height="46dp"
                 android:background="@drawable/widget_control_button"
                 android:text="⏮"
-                android:textColor="#FFFFFFFF"
+                android:textColor="#FFFFFF"
                 android:textSize="17sp"
                 android:minWidth="0dp"
-                android:minHeight="0dp" />
+                android:minHeight="0dp"
+                android:padding="0dp" />
 
             <Button
                 android:id="@+id/widget_play"
@@ -193,11 +203,12 @@
                 android:layout_marginEnd="10dp"
                 android:background="@drawable/widget_play_button"
                 android:text="▶"
-                android:textColor="#FFFFFFFF"
+                android:textColor="#FFFFFF"
                 android:textSize="20sp"
                 android:textStyle="bold"
                 android:minWidth="0dp"
-                android:minHeight="0dp" />
+                android:minHeight="0dp"
+                android:padding="0dp" />
 
             <Button
                 android:id="@+id/widget_next"
@@ -205,10 +216,11 @@
                 android:layout_height="46dp"
                 android:background="@drawable/widget_control_button"
                 android:text="⏭"
-                android:textColor="#FFFFFFFF"
+                android:textColor="#FFFFFF"
                 android:textSize="17sp"
                 android:minWidth="0dp"
-                android:minHeight="0dp" />
+                android:minHeight="0dp"
+                android:padding="0dp" />
 
         </LinearLayout>
 
