@@ -7,7 +7,6 @@
     android:background="@drawable/widget_background"
     android:clipToOutline="true">
 
-    <!-- Album artwork background -->
     <ImageView
         android:id="@+id/widget_artwork"
         android:layout_width="match_parent"
@@ -16,19 +15,16 @@
         android:alpha="0.58"
         android:contentDescription="Album artwork" />
 
-    <!-- Dark cinematic overlay -->
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/widget_artwork_overlay" />
 
-    <!-- Glass effect -->
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/widget_glass_overlay" />
 
-    <!-- Main content -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -36,7 +32,6 @@
         android:padding="14dp"
         android:gravity="center_vertical">
 
-        <!-- Artwork area -->
         <FrameLayout
             android:layout_width="76dp"
             android:layout_height="76dp"
@@ -52,7 +47,6 @@
 
         </FrameLayout>
 
-        <!-- Song information and controls -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -62,7 +56,6 @@
             android:paddingStart="14dp"
             android:paddingEnd="4dp">
 
-            <!-- Song title -->
             <TextView
                 android:id="@+id/widget_title"
                 android:layout_width="match_parent"
@@ -78,7 +71,6 @@
                 android:shadowDy="2"
                 android:shadowRadius="5" />
 
-            <!-- Artist -->
             <TextView
                 android:id="@+id/widget_artist"
                 android:layout_width="match_parent"
@@ -94,7 +86,6 @@
                 android:shadowDy="1"
                 android:shadowRadius="3" />
 
-            <!-- Status -->
             <TextView
                 android:id="@+id/widget_status"
                 android:layout_width="match_parent"
@@ -106,7 +97,6 @@
                 android:maxLines="1"
                 android:ellipsize="end" />
 
-            <!-- Decorative equalizer -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="20dp"
@@ -157,7 +147,6 @@
 
             </LinearLayout>
 
-            <!-- Playback controls -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="42dp"
@@ -165,7 +154,6 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <!-- Previous -->
                 <TextView
                     android:id="@+id/widget_previous"
                     android:layout_width="42dp"
@@ -178,7 +166,6 @@
                     android:focusable="true"
                     android:background="@drawable/widget_control_button" />
 
-                <!-- Play / Pause -->
                 <TextView
                     android:id="@+id/widget_play"
                     android:layout_width="46dp"
@@ -194,7 +181,6 @@
                     android:focusable="true"
                     android:background="@drawable/widget_play_button" />
 
-                <!-- Next -->
                 <TextView
                     android:id="@+id/widget_next"
                     android:layout_width="42dp"
@@ -205,4 +191,12 @@
                     android:textSize="17sp"
                     android:clickable="true"
                     android:focusable="true"
-                    android:
+                    android:background="@drawable/widget_control_button" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</FrameLayout>
