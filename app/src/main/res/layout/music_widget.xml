@@ -1,202 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:clipToOutline="true">
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#202020">
+
+    <TextView
+        android:id="@+id/widget_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Pulse Music"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/widget_artist"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Nothing playing"
+        android:textColor="#CCCCCC"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="READY"
+        android:textColor="#AAAAAA"
+        android:textSize="11sp" />
 
     <ImageView
         android:id="@+id/widget_artwork"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:alpha="0.58"
-        android:contentDescription="Album artwork" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/widget_artwork_overlay" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/widget_glass_overlay" />
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="gone" />
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:padding="14dp"
-        android:gravity="center_vertical">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
 
-        <FrameLayout
-            android:layout_width="76dp"
-            android:layout_height="76dp"
-            android:layout_gravity="center_vertical">
-
-            <ImageView
-                android:id="@+id/widget_artwork_placeholder"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/widget_artwork_card"
-                android:visibility="gone"
-                android:contentDescription="Album artwork placeholder" />
-
-        </FrameLayout>
-
-        <LinearLayout
+        <Button
+            android:id="@+id/widget_previous"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical"
-            android:gravity="center_vertical"
-            android:paddingStart="14dp"
-            android:paddingEnd="4dp">
+            android:text="⏮" />
 
-            <TextView
-                android:id="@+id/widget_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Nothing playing"
-                android:textColor="#FFFFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:shadowColor="#99000000"
-                android:shadowDx="0"
-                android:shadowDy="2"
-                android:shadowRadius="5" />
+        <Button
+            android:id="@+id/widget_play"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="▶" />
 
-            <TextView
-                android:id="@+id/widget_artist"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:text=""
-                android:textColor="#D8D8E5"
-                android:textSize="12sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:shadowColor="#99000000"
-                android:shadowDx="0"
-                android:shadowDy="1"
-                android:shadowRadius="3" />
-
-            <TextView
-                android:id="@+id/widget_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text=""
-                android:textColor="#99FFFFFF"
-                android:textSize="10sp"
-                android:maxLines="1"
-                android:ellipsize="end" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="20dp"
-                android:layout_marginTop="6dp"
-                android:gravity="bottom"
-                android:orientation="horizontal">
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="7dp"
-                    android:layout_marginEnd="3dp"
-                    android:background="@drawable/widget_bar" />
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="13dp"
-                    android:layout_marginEnd="3dp"
-                    android:background="@drawable/widget_bar" />
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="9dp"
-                    android:layout_marginEnd="3dp"
-                    android:background="@drawable/widget_bar" />
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="17dp"
-                    android:layout_marginEnd="3dp"
-                    android:background="@drawable/widget_bar" />
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="11dp"
-                    android:layout_marginEnd="3dp"
-                    android:background="@drawable/widget_bar" />
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="15dp"
-                    android:layout_marginEnd="3dp"
-                    android:background="@drawable/widget_bar" />
-
-                <View
-                    android:layout_width="3dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/widget_bar" />
-
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="42dp"
-                android:layout_marginTop="2dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/widget_previous"
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
-                    android:gravity="center"
-                    android:text="⏮"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="17sp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="@drawable/widget_control_button" />
-
-                <TextView
-                    android:id="@+id/widget_play"
-                    android:layout_width="46dp"
-                    android:layout_height="42dp"
-                    android:layout_marginStart="6dp"
-                    android:layout_marginEnd="6dp"
-                    android:gravity="center"
-                    android:text="▶"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="@drawable/widget_play_button" />
-
-                <TextView
-                    android:id="@+id/widget_next"
-                    android:layout_width="42dp"
-                    android:layout_height="42dp"
-                    android:gravity="center"
-                    android:text="⏭"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="17sp"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:background="@drawable/widget_control_button" />
-
-            </LinearLayout>
-
-        </LinearLayout>
+        <Button
+            android:id="@+id/widget_next"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="⏭" />
 
     </LinearLayout>
 
-</FrameLayout>
+</LinearLayout>
