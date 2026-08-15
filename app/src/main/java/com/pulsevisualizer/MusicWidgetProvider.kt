@@ -8,8 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 
-class MusicWidgetProvider :
-    AppWidgetProvider() {
+class MusicWidgetProvider : AppWidgetProvider() {
 
     companion object {
 
@@ -22,13 +21,10 @@ class MusicWidgetProvider :
         private const val ACTION_NEXT =
             "com.pulsevisualizer.WIDGET_NEXT"
 
-        fun updateAll(
-            context: Context
-        ) {
+        fun updateAll(context: Context) {
 
             val manager =
-                AppWidgetManager
-                    .getInstance(context)
+                AppWidgetManager.getInstance(context)
 
             val component =
                 ComponentName(
@@ -37,17 +33,19 @@ class MusicWidgetProvider :
                 )
 
             val ids =
-                manager.getAppWidgetIds(
-                    component
-                )
+                manager.getAppWidgetIds(component)
 
             for (id in ids) {
-
-                updateWidget(
-                    context,
-                    manager,
-                    id
-                )
+                try {
+                    updateWidget(
+                        context,
+                        manager,
+                        id
+                    )
+                } catch (_: Exception) {
+                    // Never allow a widget update failure
+                    // to crash the application.
+                }
             }
         }
 
@@ -73,18 +71,7 @@ class MusicWidgetProvider :
 
             views.setTextViewText(
                 R.id.widget_artist,
-                media.artist.ifBlank {
-                    "Unknown artist"
-                }
-            )
-
-            views.setTextViewText(
-                R.id.widget_status,
-                if (media.playing) {
-                    "NOW PLAYING"
-                } else {
-                    "PAUSED"
-                }
+                media.artist
             )
 
             views.setTextViewText(
@@ -137,9 +124,7 @@ class MusicWidgetProvider :
 
             views.setOnClickPendingIntent(
                 R.id.widget_artwork,
-                launchAppPendingIntent(
-                    context
-                )
+                launchAppPendingIntent(context)
             )
 
             manager.updateAppWidget(
@@ -157,7 +142,9 @@ class MusicWidgetProvider :
                 Intent(
                     context,
                     MusicWidgetProvider::class.java
-                ).setAction(action)
+                ).apply {
+                    this.action = action
+                }
 
             return PendingIntent.getBroadcast(
                 context,
@@ -194,15 +181,32 @@ class MusicWidgetProvider :
         appWidgetIds: IntArray
     ) {
 
-        MediaRepository.start(context)
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT start MediaRepository here.
+         *
+         * Samsung's launcher calls onUpdate while adding the
+         * widget. Starting the MediaSession/notification-listener
+         * machinery at this exact point can cause the launcher to
+         * reject the widget with "Couldn't add widget".
+         *
+         * The main application starts MediaRepository separately.
+         */
 
         for (widgetId in appWidgetIds) {
 
-            updateWidget(
-                context,
-                appWidgetManager,
-                widgetId
-            )
+            try {
+
+                updateWidget(
+                    context,
+                    appWidgetManager,
+                    widgetId
+                )
+
+            } catch (_: Exception) {
+                // Prevent widget creation from crashing.
+            }
         }
     }
 
@@ -216,23 +220,36 @@ class MusicWidgetProvider :
             intent
         )
 
-        MediaRepository.start(context)
-
         when (intent.action) {
 
-            ACTION_PREVIOUS ->
+            ACTION_PREVIOUS -> {
+
+                MediaRepository.start(context)
                 MediaRepository.previous()
 
-            ACTION_PLAY_PAUSE ->
-                MediaRepository
-                    .togglePlayPause()
+                updateAll(context)
+            }
 
-            ACTION_NEXT ->
+            ACTION_PLAY_PAUSE -> {
+
+                MediaRepository.start(context)
+                MediaRepository.togglePlayPause()
+
+                updateAll(context)
+            }
+
+            ACTION_NEXT -> {
+
+                MediaRepository.start(context)
                 MediaRepository.next()
 
-            AppWidgetManager
-                .ACTION_APPWIDGET_UPDATE ->
                 updateAll(context)
+            }
+
+            AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
+
+                updateAll(context)
+            }
         }
     }
-    }
+}
