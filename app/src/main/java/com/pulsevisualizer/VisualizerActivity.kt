@@ -17,17 +17,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 class VisualizerActivity :
     ComponentActivity() {
@@ -35,10 +46,7 @@ class VisualizerActivity :
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
-
-        super.onCreate(
-            savedInstanceState
-        )
+        super.onCreate(savedInstanceState)
 
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -46,9 +54,7 @@ class VisualizerActivity :
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
 
         setContent {
-
             PulseTheme {
-
                 FullScreenVisualizer()
             }
         }
@@ -61,15 +67,44 @@ fun FullScreenVisualizer() {
     val media by
         MediaRepository.media.collectAsState()
 
-    val bands by
-        AudioCaptureManager.bands.collectAsState()
+    var phase by
+        remember {
+            mutableFloatStateOf(0f)
+        }
+
+    LaunchedEffect(
+        media.playing,
+        media.title
+    ) {
+
+        while (media.playing) {
+
+            phase += 0.035f
+
+            delay(16)
+        }
+    }
+
+    val trackSeed =
+        kotlin.math.abs(
+            (
+                media.title +
+                    media.artist
+                ).hashCode()
+        )
 
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
                 .background(
-                    Color(0xFF030305)
+                    Brush.radialGradient(
+                        listOf(
+                            Color(0xFF17102B),
+                            Color(0xFF07060B),
+                            Color.Black
+                        )
+                    )
                 )
     ) {
 
@@ -78,123 +113,109 @@ fun FullScreenVisualizer() {
                 Modifier.fillMaxSize()
         ) {
 
-            val count =
-                minOf(
-                    48,
-                    bands.size
-                )
+            val centerX =
+                size.width / 2f
 
             val centerY =
-                size.height * 0.48f
+                size.height / 2f
 
-            val gap =
-                4f
+            val radius =
+                size.minDimension * 0.28f
 
-            val width =
-                (
-                    size.width -
-                        gap *
-                        (count + 1)
-                    ) / count
+            val points = 96
 
-            for (i in 0 until count) {
+            for (
+                i in 0 until points
+            ) {
 
-                val value =
-                    bands[i]
-                        .coerceIn(
-                            0f,
-                            1f
-                        )
+                val angle =
+                    2f *
+                        PI.toFloat() *
+                        i /
+                        points
 
-                val maxHeight =
-                    size.height *
-                        0.34f
+                val normalized =
+                    i.toFloat() /
+                        points
 
-                val height =
-                    (
-                        maxHeight *
+                val waveA =
+                    sin(
+                        phase * 4f +
+                            normalized *
                             (
-                                0.025f +
-                                    value *
-                                    0.975f
+                                7f +
+                                    trackSeed %
+                                    9
                                 )
-                        )
-                            .coerceAtMost(
-                                maxHeight
-                            )
+                    )
+
+                val waveB =
+                    cos(
+                        phase * 2.2f +
+                            normalized * 19f
+                    )
+
+                val amount =
+                    if (media.playing) {
+                        1f +
+                            waveA * 0.13f +
+                            waveB * 0.08f
+                    } else {
+                        1f
+                    }
+
+                val r =
+                    radius * amount
 
                 val x =
-                    gap +
-                        i *
-                        (
-                            width +
-                                gap
-                        )
+                    centerX +
+                        cos(angle) * r
 
-                val top =
-                    centerY -
-                        height
-
-                val bottom =
+                val y =
                     centerY +
-                        height
+                        sin(angle) * r
 
-                drawRoundRect(
+                drawCircle(
                     color =
                         Color(
-                            red =
-                                0.38f +
-                                    value *
-                                    0.35f,
-
-                            green =
-                                0.20f +
-                                    value *
-                                    0.35f,
-
-                            blue =
-                                1f,
-
-                            alpha =
-                                0.65f +
-                                    value *
-                                    0.35f
+                            0.55f,
+                            0.40f,
+                            1f,
+                            0.7f
                         ),
-
-                    topLeft =
-                        androidx.compose.ui.geometry.Offset(
-                            x,
-                            top
-                        ),
-
-                    size =
-                        androidx.compose.ui.geometry.Size(
-                            width,
-                            height * 2f
-                        ),
-
-                    cornerRadius =
-                        androidx.compose.ui.geometry.CornerRadius(
-                            width / 2f,
-                            width / 2f
-                        )
+                    radius = 3.5f,
+                    center =
+                        androidx.compose.ui.geometry
+                            .Offset(x, y)
                 )
             }
+
+            drawCircle(
+                color =
+                    Color(0xFF9C6CFF)
+                        .copy(alpha = 0.16f),
+                radius = radius,
+                center =
+                    androidx.compose.ui.geometry
+                        .Offset(
+                            centerX,
+                            centerY
+                        ),
+                style =
+                    Stroke(2f)
+            )
         }
 
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(
-                        start = 28.dp,
-                        end = 28.dp,
-                        bottom = 35.dp
-                    )
                     .align(
                         Alignment.BottomCenter
+                    )
+                    .padding(
+                        28.dp
                     ),
-
             horizontalAlignment =
                 Alignment.CenterHorizontally
         ) {
@@ -202,15 +223,9 @@ fun FullScreenVisualizer() {
             Text(
                 text =
                     media.title,
-
-                color =
-                    Color.White,
-
-                fontSize =
-                    27.sp,
-
-                maxLines =
-                    1
+                color = Color.White,
+                fontSize = 28.sp,
+                maxLines = 1
             )
 
             Spacer(
@@ -221,69 +236,68 @@ fun FullScreenVisualizer() {
             Text(
                 text =
                     media.artist,
-
                 color =
-                    Color.LightGray,
-
-                fontSize =
-                    17.sp,
-
-                maxLines =
-                    1
+                    Color(0xFFB0AABA),
+                fontSize = 16.sp,
+                maxLines = 1
             )
 
             Spacer(
                 modifier =
-                    Modifier.height(22.dp)
+                    Modifier.height(24.dp)
             )
 
             Row(
                 modifier =
                     Modifier.fillMaxWidth(),
-
                 horizontalArrangement =
                     Arrangement.SpaceEvenly,
-
                 verticalAlignment =
                     Alignment.CenterVertically
             ) {
 
                 IconButton(
-                    onClick = {
-                        MediaRepository.previous()
-                    },
-
+                    onClick =
+                        {
+                            MediaRepository
+                                .previous()
+                        },
                     modifier =
-                        Modifier.size(62.dp)
+                        Modifier.size(64.dp)
                 ) {
-
                     Text(
-                        text = "⏮",
-                        color =
-                            Color.White,
-                        fontSize =
-                            32.sp
+                        "⏮",
+                        color = Color.White,
+                        fontSize = 32.sp
                     )
                 }
 
-                IconButton(
-                    onClick = {
-                        MediaRepository.togglePlayPause()
-                    },
-
+                Box(
                     modifier =
                         Modifier
-                            .size(76.dp)
-                            .clip(
-                                CircleShape
-                            )
+                            .size(82.dp)
+                            .clip(CircleShape)
                             .background(
-                                Color(0xFF9B7BFF)
-                            )
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFFAA7CFF),
+                                        Color(0xFF586DFF)
+                                    )
+                                )
+                            ),
+                    contentAlignment =
+                        Alignment.Center
                 ) {
 
-                    Text(
-                        text =
+                    IconButton(
+                        onClick =
+                            {
+                                MediaRepository
+                                    .togglePlayPause()
+                            }
+                    ) {
+
+                        Text(
                             if (
                                 media.playing
                             ) {
@@ -291,48 +305,40 @@ fun FullScreenVisualizer() {
                             } else {
                                 "▶"
                             },
-
-                        color =
-                            Color.White,
-
-                        fontSize =
-                            28.sp
-                    )
+                            color =
+                                Color.White,
+                            fontSize = 30.sp
+                        )
+                    }
                 }
 
                 IconButton(
-                    onClick = {
-                        MediaRepository.next()
-                    },
-
+                    onClick =
+                        {
+                            MediaRepository.next()
+                        },
                     modifier =
-                        Modifier.size(62.dp)
+                        Modifier.size(64.dp)
                 ) {
-
                     Text(
-                        text = "⏭",
-                        color =
-                            Color.White,
-                        fontSize =
-                            32.sp
+                        "⏭",
+                        color = Color.White,
+                        fontSize = 32.sp
                     )
                 }
             }
 
             Spacer(
                 modifier =
-                    Modifier.height(14.dp)
+                    Modifier.height(16.dp)
             )
 
             Text(
-                text =
-                    "LIVE AUDIO SPECTRUM",
-
+                text = "PULSE",
                 color =
-                    Color.Gray,
-
-                fontSize =
-                    11.sp
+                    Color(0xFF756A84),
+                fontSize = 10.sp,
+                letterSpacing = 4.sp
             )
         }
     }
