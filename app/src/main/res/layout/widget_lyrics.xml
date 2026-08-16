@@ -6,70 +6,50 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="18dp"
-    android:background="#17171B"
-    android:clickable="true"
-    android:focusable="true">
+    android:padding="16dp"
+    android:background="#17171B">
 
     <TextView
         android:id="@+id/lyrics_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="LYRICS"
-        android:textColor="#AFAFB8"
+        android:text="PULSE LYRICS"
+        android:textColor="#AAAAAA"
         android:textSize="11sp"
-        android:textStyle="bold"
-        android:letterSpacing="0.12"
-        android:fontFamily="sans" />
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/lyrics_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:maxLines="1"
-        android:ellipsize="end"
         android:text="Nothing playing"
         android:textColor="#FFFFFF"
         android:textSize="18sp"
         android:textStyle="bold"
-        android:fontFamily="sans" />
+        android:maxLines="1"
+        android:ellipsize="end" />
 
     <TextView
         android:id="@+id/lyrics_artist"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="#9B9BA5"
+        android:text=""
+        android:textColor="#999999"
         android:textSize="13sp"
-        android:fontFamily="sans" />
+        android:maxLines="1"
+        android:ellipsize="end" />
 
-    <View
+    <TextView
+        android:id="@+id/lyrics_text"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="10dp"
-        android:background="#303038" />
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true"
-        android:scrollbars="none">
-
-        <TextView
-            android:id="@+id/lyrics_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Play a song to see lyrics"
-            android:textColor="#FFFFFF"
-            android:textSize="15sp"
-            android:lineSpacingExtra="5dp"
-            android:fontFamily="sans" />
-
-    </ScrollView>
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="Play a song to see lyrics"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp"
+        android:maxLines="8"
+        android:ellipsize="end" />
 
 </LinearLayout>
