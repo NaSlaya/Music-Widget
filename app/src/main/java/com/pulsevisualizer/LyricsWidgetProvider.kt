@@ -346,4 +346,113 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     ).trim()
                 }
                 .filter {
-                    it.isNot
+                    it.isNotBlank()
+                }
+                .joinToString("\n")
+        }
+
+
+        private fun updateWidgets(
+            context: Context,
+            manager: AppWidgetManager,
+            widgetIds: IntArray,
+            title: String,
+            artist: String,
+            lyrics: String
+        ) {
+
+            for (widgetId in widgetIds) {
+
+                try {
+
+                    val views =
+                        RemoteViews(
+                            context.packageName,
+                            R.layout.widget_lyrics
+                        )
+
+                    views.setTextViewText(
+                        R.id.lyrics_title,
+                        title
+                    )
+
+                    views.setTextViewText(
+                        R.id.lyrics_artist,
+                        artist
+                    )
+
+                    views.setTextViewText(
+                        R.id.lyrics_text,
+                        lyrics
+                    )
+
+                    val intent =
+                        Intent(
+                            context,
+                            MainActivity::class.java
+                        ).apply {
+
+                            flags =
+                                Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        }
+
+                    val pendingIntent =
+                        PendingIntent.getActivity(
+                            context,
+                            widgetId,
+                            intent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or
+                            PendingIntent.FLAG_IMMUTABLE
+                        )
+
+                    views.setOnClickPendingIntent(
+                        R.id.lyrics_root,
+                        pendingIntent
+                    )
+
+                    manager.updateAppWidget(
+                        widgetId,
+                        views
+                    )
+
+                } catch (_: Exception) {
+                    // Never let a widget failure crash media detection.
+                }
+            }
+        }
+    }
+
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+
+        updateAll(context)
+    }
+
+
+    override fun onEnabled(
+        context: Context
+    ) {
+
+        updateAll(context)
+    }
+
+
+    override fun onDeleted(
+        context: Context,
+        appWidgetIds: IntArray
+    ) {
+        // Nothing required.
+    }
+
+
+    override fun onDisabled(
+        context: Context
+    ) {
+        // Nothing required.
+    }
+}
