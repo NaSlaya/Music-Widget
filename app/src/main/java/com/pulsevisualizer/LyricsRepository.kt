@@ -4,8 +4,8 @@ import android.content.Context
 import org.json.JSONArray
 import java.io.File
 import java.net.HttpURLConnection
-import java.net.URLEncoder
 import java.net.URL
+import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.max
@@ -13,8 +13,7 @@ import kotlin.math.min
 
 object LyricsRepository {
 
-    private const val CACHE_VERSION = 2
-
+    private const val CACHE_VERSION = 4
     private const val CONNECT_TIMEOUT = 8000
     private const val READ_TIMEOUT = 10000
 
@@ -31,11 +30,7 @@ object LyricsRepository {
         val cleanArtist = cleanArtist(artist)
 
         if (cleanTitle.isBlank()) {
-            return LyricsDocument(
-                emptyList(),
-                source = "none",
-                confidence = 0f
-            )
+            return emptyDocument()
         }
 
         val key = makeKey(
@@ -55,50 +50,48 @@ object LyricsRepository {
             return it
         }
 
-        /*
-         * First attempt:
-         * exact title + artist.
-         */
+        // First search: title + artist
         val withArtist = search(
             cleanTitle,
             cleanArtist
         )
 
         if (withArtist.lines.isNotEmpty()) {
+            memoryCache[key] = withArtist
+
             save(
                 context,
                 key,
                 withArtist
             )
 
-            memoryCache[key] = withArtist
-
             return withArtist
         }
 
-        /*
-         * Second attempt:
-         * title only.
-         */
+        // Second search: title only
         val titleOnly = search(
             cleanTitle,
             null
         )
 
         if (titleOnly.lines.isNotEmpty()) {
+            memoryCache[key] = titleOnly
+
             save(
                 context,
                 key,
                 titleOnly
             )
 
-            memoryCache[key] = titleOnly
-
             return titleOnly
         }
 
+        return emptyDocument()
+    }
+
+    private fun emptyDocument(): LyricsDocument {
         return LyricsDocument(
-            emptyList(),
+            lines = emptyList(),
             source = "none",
             confidence = 0f
         )
@@ -166,11 +159,7 @@ object LyricsRepository {
 
                 connection.disconnect()
 
-                return LyricsDocument(
-                    emptyList(),
-                    source = "none",
-                    confidence = 0f
-                )
+                return emptyDocument()
             }
 
             val response =
@@ -193,11 +182,7 @@ object LyricsRepository {
             _: Exception
         ) {
 
-            LyricsDocument(
-                emptyList(),
-                source = "none",
-                confidence = 0f
-            )
+            emptyDocument()
         }
     }
 
@@ -208,21 +193,17 @@ object LyricsRepository {
     ): LyricsDocument {
 
         var best =
-            LyricsDocument(
-                emptyList(),
-                source = "none",
-                confidence = 0f
-            )
+            emptyDocument()
 
         var bestScore =
-            Float.MIN_VALUE
+            -1f
 
         for (
-            i in 0 until results.length()
+            index in 0 until results.length()
         ) {
 
             val item =
-                results.optJSONObject(i)
+                results.optJSONObject(index)
                     ?: continue
 
             val resultTitle =
@@ -240,7 +221,9 @@ object LyricsRepository {
                     "syncedLyrics"
                 )
 
-            if (syncedLyrics.isBlank()) {
+            if (
+                syncedLyrics.isBlank()
+            ) {
                 continue
             }
 
@@ -249,7 +232,9 @@ object LyricsRepository {
                     syncedLyrics
                 )
 
-            if (lines.isEmpty()) {
+            if (
+                lines.isEmpty()
+            ) {
                 continue
             }
 
@@ -261,7 +246,10 @@ object LyricsRepository {
                     resultTitle
                 ) * 60f
 
-            if (!artist.isNullOrBlank()) {
+            if (
+                !artist.isNullOrBlank()
+            ) {
+
                 score +=
                     similarity(
                         artist,
@@ -269,17 +257,15 @@ object LyricsRepository {
                     ) * 35f
             }
 
-            /*
-             * Slight preference for documents
-             * with a healthy number of lyric lines.
-             */
             score +=
                 min(
                     5f,
                     lines.size / 20f
                 )
 
-            if (score > bestScore) {
+            if (
+                score > bestScore
+            ) {
 
                 bestScore = score
 
@@ -288,11 +274,12 @@ object LyricsRepository {
                         lines = lines,
                         source = "LRCLIB",
                         confidence =
-                            (score / 100f)
-                                .coerceIn(
-                                    0f,
-                                    1f
-                                )
+                            (
+                                score / 100f
+                            ).coerceIn(
+                                0f,
+                                1f
+                            )
                     )
             }
         }
@@ -321,7 +308,9 @@ object LyricsRepository {
                     .findAll(sourceLine)
                     .toList()
 
-            if (matches.isEmpty()) {
+            if (
+                matches.isEmpty()
+            ) {
                 continue
             }
 
@@ -340,7 +329,9 @@ object LyricsRepository {
                 continue
             }
 
-            for (match in matches) {
+            for (
+                match in matches
+            ) {
 
                 val minutes =
                     match
@@ -361,16 +352,18 @@ object LyricsRepository {
                     when (fraction.length) {
 
                         1 ->
-                            fraction
-                                .toLongOrNull()
-                                ?.times(100)
-                                ?: 0L
+                            (
+                                fraction
+                                    .toLongOrNull()
+                                    ?: 0L
+                            ) * 100L
 
                         2 ->
-                            fraction
-                                .toLongOrNull()
-                                ?.times(10)
-                                ?: 0L
+                            (
+                                fraction
+                                    .toLongOrNull()
+                                    ?: 0L
+                            ) * 10L
 
                         3 ->
                             fraction
@@ -386,14 +379,23 @@ object LyricsRepository {
                         seconds * 1_000L +
                         fractionMs
 
-                rawEntries.add(
-                    time to
-                        cleanLyricText(text)
-                )
+                val cleaned =
+                    cleanLyricText(text)
+
+                if (
+                    cleaned.isNotBlank()
+                ) {
+
+                    rawEntries.add(
+                        time to cleaned
+                    )
+                }
             }
         }
 
-        if (rawEntries.isEmpty()) {
+        if (
+            rawEntries.isEmpty()
+        ) {
             return emptyList()
         }
 
@@ -405,7 +407,9 @@ object LyricsRepository {
         val result =
             mutableListOf<LyricLine>()
 
-        for (index in sorted.indices) {
+        for (
+            index in sorted.indices
+        ) {
 
             val start =
                 sorted[index].first
@@ -416,30 +420,21 @@ object LyricsRepository {
                     ?.first
 
             val end =
-                next?.let {
+                if (next != null) {
                     max(
                         start + 250L,
-                        it
+                        next
                     )
+                } else {
+                    start + 5000L
                 }
-                    ?: (
-                        start + 5000L
-                    )
 
             val text =
                 sorted[index].second
 
-            if (text.isBlank()) {
-                continue
-            }
-
             val previous =
                 result.lastOrNull()
 
-            /*
-             * Prevent duplicate lines caused by
-             * repeated LRC timestamps.
-             */
             if (
                 previous != null &&
                 previous.text.equals(
@@ -471,8 +466,8 @@ object LyricsRepository {
         }
 
         return result.mapIndexed {
-                index,
-                line ->
+            index,
+            line ->
 
             val actualEnd =
                 result
@@ -497,7 +492,8 @@ object LyricsRepository {
             )
         }
     }
-        private fun similarity(
+
+    private fun similarity(
         a: String,
         b: String
     ): Float {
@@ -515,7 +511,9 @@ object LyricsRepository {
             return 0f
         }
 
-        if (left == right) {
+        if (
+            left == right
+        ) {
             return 1f
         }
 
@@ -523,7 +521,7 @@ object LyricsRepository {
             left.contains(right) ||
             right.contains(left)
         ) {
-            return 0.90f
+            return 0.9f
         }
 
         val aWords =
@@ -543,20 +541,25 @@ object LyricsRepository {
                 .toSet()
 
         val intersection =
-            aWords.intersect(bWords).size
+            aWords.intersect(
+                bWords
+            ).size
 
         val union =
-            aWords.union(bWords).size
+            aWords.union(
+                bWords
+            ).size
 
-        if (union == 0) {
+        if (
+            union == 0
+        ) {
             return 0f
         }
 
         return intersection.toFloat() /
             union.toFloat()
     }
-
-    private fun cleanTitle(
+        private fun cleanTitle(
         value: String
     ): String {
 
@@ -591,7 +594,9 @@ object LyricsRepository {
                 "[Remastered]"
             )
 
-        for (item in removable) {
+        for (
+            item in removable
+        ) {
 
             result =
                 result.replace(
@@ -601,21 +606,19 @@ object LyricsRepository {
                 )
         }
 
-        /*
-         * Remove common YouTube-style suffixes.
-         */
         result =
             result.replace(
                 Regex(
                     """\s*[-|]\s*(official|lyrics?|lyric video|audio|visualizer).*$"""
                 ),
-                "",
-                ignoreCase = true
+                ""
             )
 
         return result
             .replace(
-                Regex("\\s{2,}"),
+                Regex(
+                    """\s{2,}"""
+                ),
                 " "
             )
             .trim()
@@ -630,8 +633,7 @@ object LyricsRepository {
                 Regex(
                     """\s*(feat\.?|ft\.?)\s+.*$"""
                 ),
-                "",
-                ignoreCase = true
+                ""
             )
             .trim()
     }
@@ -654,7 +656,9 @@ object LyricsRepository {
                 ""
             )
             .replace(
-                Regex("\\s{2,}"),
+                Regex(
+                    """\s{2,}"""
+                ),
                 " "
             )
             .trim()
@@ -691,7 +695,9 @@ object LyricsRepository {
                 ""
             )
             .replace(
-                Regex("\\s+"),
+                Regex(
+                    """\s+"""
+                ),
                 " "
             )
             .trim()
@@ -718,8 +724,7 @@ object LyricsRepository {
         return File(
             context.cacheDir,
             "lyrics_" +
-                key.hashCode()
-                    .toString() +
+                key.hashCode() +
                 ".txt"
         )
     }
@@ -779,11 +784,11 @@ object LyricsRepository {
         } catch (
             _: Exception
         ) {
-            // Cache failure should never
-            // prevent lyrics from working.
+            // Cache failure is ignored.
         }
     }
-        private fun readDiskCache(
+
+    private fun readDiskCache(
         context: Context,
         key: String
     ): LyricsDocument? {
@@ -796,14 +801,18 @@ object LyricsRepository {
                     key
                 )
 
-            if (!file.exists()) {
+            if (
+                !file.exists()
+            ) {
                 return null
             }
 
             val lines =
                 file.readLines()
 
-            if (lines.size < 3) {
+            if (
+                lines.size < 3
+            ) {
                 return null
             }
 
@@ -818,7 +827,8 @@ object LyricsRepository {
             val entries =
                 lines
                     .drop(2)
-                    .mapNotNull { cachedLine ->
+                    .mapNotNull {
+                        cachedLine ->
 
                         val split =
                             cachedLine.split(
@@ -826,7 +836,9 @@ object LyricsRepository {
                                 limit = 2
                             )
 
-                        if (split.size != 2) {
+                        if (
+                            split.size != 2
+                        ) {
                             return@mapNotNull null
                         }
 
@@ -838,14 +850,16 @@ object LyricsRepository {
                         time to split[1]
                     }
 
-            if (entries.isEmpty()) {
+            if (
+                entries.isEmpty()
+            ) {
                 return null
             }
 
             val result =
                 entries.mapIndexed {
-                        index,
-                        entry ->
+                    index,
+                    entry ->
 
                     val start =
                         entry.first
