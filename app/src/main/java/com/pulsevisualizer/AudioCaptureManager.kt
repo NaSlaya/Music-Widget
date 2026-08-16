@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,9 +26,7 @@ import kotlin.math.sqrt
 object AudioCaptureManager {
 
     private const val BAND_COUNT = 64
-
     private const val SAMPLE_RATE = 44100
-
     private const val FFT_SIZE = 2048
 
     private val _bands =
@@ -35,28 +34,22 @@ object AudioCaptureManager {
             FloatArray(BAND_COUNT)
         )
 
-    val bands:
-        StateFlow<FloatArray> =
+    val bands: StateFlow<FloatArray> =
         _bands
 
     private val _isCapturing =
         MutableStateFlow(false)
 
-    val isCapturing:
-        StateFlow<Boolean> =
+    val isCapturing: StateFlow<Boolean> =
         _isCapturing
 
-    private var projection:
-        MediaProjection? = null
+    private var projection: MediaProjection? = null
 
-    private var recorder:
-        AudioRecord? = null
+    private var recorder: AudioRecord? = null
 
-    private var captureJob:
-        Job? = null
+    private var captureJob: Job? = null
 
-    private var scope:
-        CoroutineScope? = null
+    private var scope: CoroutineScope? = null
 
     @Synchronized
     fun start(
@@ -64,9 +57,7 @@ object AudioCaptureManager {
         data: Intent
     ): Boolean {
 
-        if (Build.VERSION.SDK_INT <
-            Build.VERSION_CODES.Q
-        ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return false
         }
 
@@ -88,19 +79,14 @@ object AudioCaptureManager {
                 )
             } catch (_: Exception) {
                 null
-            }
-                ?: return false
+            } ?: return false
 
-        projection =
-            newProjection
+        projection = newProjection
 
         val captureConfig =
             try {
-
                 AudioPlaybackCaptureConfiguration
-                    .Builder(
-                        newProjection
-                    )
+                    .Builder(newProjection)
                     .addMatchingUsage(
                         AudioAttributes.USAGE_MEDIA
                     )
@@ -108,7 +94,6 @@ object AudioCaptureManager {
                         AudioAttributes.USAGE_GAME
                     )
                     .build()
-
             } catch (_: Exception) {
 
                 projection?.stop()
@@ -137,9 +122,7 @@ object AudioCaptureManager {
                 AudioFormat.ENCODING_PCM_16BIT
             )
 
-        if (
-            minimumBuffer <= 0
-        ) {
+        if (minimumBuffer <= 0) {
 
             projection?.stop()
             projection = null
@@ -155,7 +138,6 @@ object AudioCaptureManager {
 
         val newRecorder =
             try {
-
                 AudioRecord.Builder()
                     .setAudioFormat(
                         audioFormat
@@ -167,7 +149,6 @@ object AudioCaptureManager {
                         captureConfig
                     )
                     .build()
-
             } catch (_: Exception) {
 
                 projection?.stop()
@@ -176,8 +157,7 @@ object AudioCaptureManager {
                 return false
             }
 
-        recorder =
-            newRecorder
+        recorder = newRecorder
 
         scope =
             CoroutineScope(
@@ -188,7 +168,11 @@ object AudioCaptureManager {
             newRecorder.startRecording()
         } catch (_: Exception) {
 
-            newRecorder.release()
+            try {
+                newRecorder.release()
+            } catch (_: Exception) {
+            }
+
             recorder = null
 
             projection?.stop()
@@ -204,10 +188,7 @@ object AudioCaptureManager {
 
         captureJob =
             scope?.launch {
-
-                captureLoop(
-                    newRecorder
-                )
+                captureLoop(newRecorder)
             }
 
         return true
@@ -218,22 +199,16 @@ object AudioCaptureManager {
     ) {
 
         val samples =
-            ShortArray(
-                FFT_SIZE
-            )
+            ShortArray(FFT_SIZE)
 
         val real =
-            DoubleArray(
-                FFT_SIZE
-            )
+            DoubleArray(FFT_SIZE)
 
         val imaginary =
-            DoubleArray(
-                FFT_SIZE
-            )
+            DoubleArray(FFT_SIZE)
 
         while (
-            isActive &&
+            currentCoroutineContext().isActive &&
             _isCapturing.value
         ) {
 
@@ -270,17 +245,14 @@ object AudioCaptureManager {
                                 PI *
                                 i /
                                 (
-                                    FFT_SIZE -
-                                        1
+                                    FFT_SIZE - 1
                                 )
                         )
 
                 real[i] =
-                    sample *
-                        window
+                    sample * window
 
-                imaginary[i] =
-                    0.0
+                imaginary[i] = 0.0
             }
 
             fft(
@@ -289,60 +261,35 @@ object AudioCaptureManager {
             )
 
             val output =
-                FloatArray(
-                    BAND_COUNT
-                )
-
-            var totalEnergy =
-                0.0
-
-            for (i in 1 until
-                    FFT_SIZE / 2
-            ) {
-
-                val magnitude =
-                    sqrt(
-                        real[i] *
-                            real[i] +
-                            imaginary[i] *
-                            imaginary[i]
-                    )
-
-                totalEnergy +=
-                    magnitude
-            }
+                FloatArray(BAND_COUNT)
 
             val maxFrequency =
-                SAMPLE_RATE / 2
+                SAMPLE_RATE / 2.0
 
             for (
                 band in 0 until BAND_COUNT
             ) {
 
-                val normalizedBand =
+                val normalizedStart =
                     band.toDouble() /
                         BAND_COUNT
 
-                val nextBand =
-                    (
-                        band + 1
-                    ).toDouble() /
+                val normalizedEnd =
+                    (band + 1).toDouble() /
                         BAND_COUNT
 
                 val minFrequency =
                     40.0 *
                         Math.pow(
-                            maxFrequency /
-                                40.0,
-                            normalizedBand
+                            maxFrequency / 40.0,
+                            normalizedStart
                         )
 
                 val maxBandFrequency =
                     40.0 *
                         Math.pow(
-                            maxFrequency /
-                                40.0,
-                            nextBand
+                            maxFrequency / 40.0,
+                            normalizedEnd
                         )
 
                 val minBin =
@@ -365,9 +312,7 @@ object AudioCaptureManager {
                         ).toInt()
                     )
 
-                var energy =
-                    0.0
-
+                var energy = 0.0
                 var count = 0
 
                 if (maxBin >= minBin) {
@@ -384,40 +329,51 @@ object AudioCaptureManager {
                                     imaginary[bin]
                             )
 
-                        energy +=
-                            magnitude
-
+                        energy += magnitude
                         count++
                     }
                 }
 
                 val average =
                     if (count > 0) {
-                        energy /
-                            count
+                        energy / count
                     } else {
                         0.0
                     }
 
-                val normalized =
-                    (
-                        average /
-                        6500.0
-                    )
+                /*
+                 * Convert the FFT magnitude into
+                 * a stable 0..1 visualiser value.
+                 *
+                 * The logarithmic compression makes
+                 * quieter music visible while still
+                 * allowing loud bass hits to produce
+                 * strong reactions.
+                 */
+                val compressed =
+                    if (average > 0.0) {
+                        (
+                            Math.log10(
+                                1.0 +
+                                    average / 250.0
+                            ) / 2.0
+                        )
+                    } else {
+                        0.0
+                    }
+
+                output[band] =
+                    compressed
                         .coerceIn(
                             0.0,
                             1.0
                         )
-
-                output[band] =
-                    normalized
                         .toFloat()
             }
 
             smooth(output)
 
-            _bands.value =
-                output
+            _bands.value = output
 
             delay(8L)
         }
@@ -433,14 +389,32 @@ object AudioCaptureManager {
         for (i in values.indices) {
 
             val old =
-                previous
-                    .getOrElse(i) {
-                        0f
-                    }
+                previous.getOrElse(i) {
+                    0f
+                }
+
+            /*
+             * Attack is deliberately faster than
+             * release so bass hits are visible,
+             * while the visualiser doesn't flicker.
+             */
+            val attack =
+                0.62f
+
+            val release =
+                0.30f
 
             values[i] =
-                old * 0.55f +
-                    values[i] * 0.45f
+                if (values[i] > old) {
+
+                    old * (1f - attack) +
+                        values[i] * attack
+
+                } else {
+
+                    old * (1f - release) +
+                        values[i] * release
+                }
         }
     }
 
@@ -475,23 +449,23 @@ object AudioCaptureManager {
 
             if (i < j) {
 
-                val tempReal =
+                val realTemp =
                     real[i]
 
                 real[i] =
                     real[j]
 
                 real[j] =
-                    tempReal
+                    realTemp
 
-                val tempImaginary =
+                val imaginaryTemp =
                     imaginary[i]
 
                 imaginary[i] =
                     imaginary[j]
 
                 imaginary[j] =
-                    tempImaginary
+                    imaginaryTemp
             }
         }
 
@@ -611,9 +585,7 @@ object AudioCaptureManager {
         scope = null
 
         _bands.value =
-            FloatArray(
-                BAND_COUNT
-            )
+            FloatArray(BAND_COUNT)
     }
 
     fun setBands(
@@ -621,9 +593,7 @@ object AudioCaptureManager {
     ) {
 
         val output =
-            FloatArray(
-                BAND_COUNT
-            )
+            FloatArray(BAND_COUNT)
 
         val count =
             minOf(
