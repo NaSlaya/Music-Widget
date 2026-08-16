@@ -8,7 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 
-class MusicWidgetProvider : AppWidgetProvider() {
+class MusicWidgetProvider :
+    AppWidgetProvider() {
 
     companion object {
 
@@ -21,10 +22,14 @@ class MusicWidgetProvider : AppWidgetProvider() {
         private const val ACTION_NEXT =
             "com.pulsevisualizer.WIDGET_NEXT"
 
-        fun updateAll(context: Context) {
+        fun updateAll(
+            context: Context
+        ) {
 
             val manager =
-                AppWidgetManager.getInstance(context)
+                AppWidgetManager.getInstance(
+                    context
+                )
 
             val component =
                 ComponentName(
@@ -33,18 +38,33 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 )
 
             val ids =
-                manager.getAppWidgetIds(component)
+                manager.getAppWidgetIds(
+                    component
+                )
 
-            for (id in ids) {
-                try {
-                    updateWidget(
-                        context,
-                        manager,
-                        id
-                    )
-                } catch (_: Exception) {
-                }
+            for (
+                id in ids
+            ) {
+
+                updateWidget(
+                    context,
+                    manager,
+                    id
+                )
             }
+        }
+
+        private fun id(
+            context: Context,
+            name: String
+        ): Int {
+
+            return context.resources
+                .getIdentifier(
+                    name,
+                    "id",
+                    context.packageName
+                )
         }
 
         private fun updateWidget(
@@ -53,88 +73,185 @@ class MusicWidgetProvider : AppWidgetProvider() {
             widgetId: Int
         ) {
 
-            val media = MediaRepository.media.value
+            val media =
+                MediaRepository.media.value
 
-            val views = RemoteViews(
-                context.packageName,
-                R.layout.music_widget
-            )
-
-            views.setTextViewText(
-                R.id.widget_title,
-                media.title.ifBlank {
-                    "Nothing playing"
-                }
-            )
-
-            views.setTextViewText(
-                R.id.widget_artist,
-                media.artist.ifBlank {
-                    "Unknown artist"
-                }
-            )
-
-            views.setTextViewText(
-                R.id.widget_status,
-                if (media.playing) {
-                    "NOW PLAYING"
-                } else {
-                    "PAUSED"
-                }
-            )
-
-            views.setTextViewText(
-                R.id.widget_play,
-                if (media.playing) {
-                    "Ⅱ"
-                } else {
-                    "▶"
-                }
-            )
-
-            if (media.artwork != null) {
-
-                views.setImageViewBitmap(
-                    R.id.widget_artwork,
-                    media.artwork
+            val views =
+                RemoteViews(
+                    context.packageName,
+                    R.layout.music_widget
                 )
 
-            } else {
+            val titleId =
+                id(
+                    context,
+                    "widget_title"
+                )
 
-                views.setImageViewResource(
-                    R.id.widget_artwork,
-                    android.R.drawable.ic_media_play
+            val artistId =
+                id(
+                    context,
+                    "widget_artist"
+                )
+
+            val statusId =
+                id(
+                    context,
+                    "widget_status"
+                )
+
+            val playId =
+                id(
+                    context,
+                    "widget_play"
+                )
+
+            val artworkId =
+                id(
+                    context,
+                    "widget_artwork"
+                )
+
+            val previousId =
+                id(
+                    context,
+                    "widget_previous"
+                )
+
+            val nextId =
+                id(
+                    context,
+                    "widget_next"
+                )
+
+            if (
+                titleId != 0
+            ) {
+
+                views.setTextViewText(
+                    titleId,
+                    media.title.ifBlank {
+                        "Nothing playing"
+                    }
                 )
             }
 
-            views.setOnClickPendingIntent(
-                R.id.widget_previous,
-                actionPendingIntent(
-                    context,
-                    ACTION_PREVIOUS
-                )
-            )
+            if (
+                artistId != 0
+            ) {
 
-            views.setOnClickPendingIntent(
-                R.id.widget_play,
-                actionPendingIntent(
-                    context,
-                    ACTION_PLAY_PAUSE
+                views.setTextViewText(
+                    artistId,
+                    media.artist.ifBlank {
+                        "Unknown artist"
+                    }
                 )
-            )
+            }
 
-            views.setOnClickPendingIntent(
-                R.id.widget_next,
-                actionPendingIntent(
-                    context,
-                    ACTION_NEXT
+            if (
+                statusId != 0
+            ) {
+
+                views.setTextViewText(
+                    statusId,
+                    if (
+                        media.playing
+                    ) {
+                        "NOW PLAYING"
+                    } else {
+                        "PAUSED"
+                    }
                 )
-            )
+            }
 
-            views.setOnClickPendingIntent(
-                R.id.widget_artwork,
-                launchAppPendingIntent(context)
-            )
+            if (
+                playId != 0
+            ) {
+
+                views.setTextViewText(
+                    playId,
+                    if (
+                        media.playing
+                    ) {
+                        "Ⅱ"
+                    } else {
+                        "▶"
+                    }
+                )
+            }
+
+            if (
+                artworkId != 0
+            ) {
+
+                if (
+                    media.artwork != null
+                ) {
+
+                    views.setImageViewBitmap(
+                        artworkId,
+                        media.artwork
+                    )
+
+                } else {
+
+                    views.setImageViewResource(
+                        artworkId,
+                        android.R.drawable.ic_media_play
+                    )
+                }
+            }
+
+            if (
+                previousId != 0
+            ) {
+
+                views.setOnClickPendingIntent(
+                    previousId,
+                    actionPendingIntent(
+                        context,
+                        ACTION_PREVIOUS
+                    )
+                )
+            }
+
+            if (
+                playId != 0
+            ) {
+
+                views.setOnClickPendingIntent(
+                    playId,
+                    actionPendingIntent(
+                        context,
+                        ACTION_PLAY_PAUSE
+                    )
+                )
+            }
+
+            if (
+                nextId != 0
+            ) {
+
+                views.setOnClickPendingIntent(
+                    nextId,
+                    actionPendingIntent(
+                        context,
+                        ACTION_NEXT
+                    )
+                )
+            }
+
+            if (
+                artworkId != 0
+            ) {
+
+                views.setOnClickPendingIntent(
+                    artworkId,
+                    launchAppPendingIntent(
+                        context
+                    )
+                )
+            }
 
             manager.updateAppWidget(
                 widgetId,
@@ -147,12 +264,14 @@ class MusicWidgetProvider : AppWidgetProvider() {
             action: String
         ): PendingIntent {
 
-            val intent = Intent(
-                context,
-                MusicWidgetProvider::class.java
-            ).apply {
-                this.action = action
-            }
+            val intent =
+                Intent(
+                    context,
+                    MusicWidgetProvider::class.java
+                ).apply {
+                    this.action =
+                        action
+                }
 
             return PendingIntent.getBroadcast(
                 context,
@@ -167,10 +286,11 @@ class MusicWidgetProvider : AppWidgetProvider() {
             context: Context
         ): PendingIntent {
 
-            val intent = Intent(
-                context,
-                MainActivity::class.java
-            )
+            val intent =
+                Intent(
+                    context,
+                    MainActivity::class.java
+                )
 
             return PendingIntent.getActivity(
                 context,
@@ -184,22 +304,19 @@ class MusicWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
+        manager: AppWidgetManager,
+        ids: IntArray
     ) {
 
-        for (widgetId in appWidgetIds) {
+        for (
+            widgetId in ids
+        ) {
 
-            try {
+            updateAll(
+                context
+            )
 
-                updateWidget(
-                    context,
-                    appWidgetManager,
-                    widgetId
-                )
-
-            } catch (_: Exception) {
-            }
+            break
         }
     }
 
@@ -213,38 +330,55 @@ class MusicWidgetProvider : AppWidgetProvider() {
             intent
         )
 
-        when (intent.action) {
+        when (
+            intent.action
+        ) {
 
             ACTION_PREVIOUS -> {
 
-                MediaRepository.start(context)
+                MediaRepository.start(
+                    context
+                )
 
                 MediaRepository.previous()
 
-                updateAll(context)
+                updateAll(
+                    context
+                )
             }
 
             ACTION_PLAY_PAUSE -> {
 
-                MediaRepository.start(context)
+                MediaRepository.start(
+                    context
+                )
 
                 MediaRepository.togglePlayPause()
 
-                updateAll(context)
+                updateAll(
+                    context
+                )
             }
 
             ACTION_NEXT -> {
 
-                MediaRepository.start(context)
+                MediaRepository.start(
+                    context
+                )
 
                 MediaRepository.next()
 
-                updateAll(context)
+                updateAll(
+                    context
+                )
             }
 
-            AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
+            AppWidgetManager
+                .ACTION_APPWIDGET_UPDATE -> {
 
-                updateAll(context)
+                updateAll(
+                    context
+                )
             }
         }
     }
