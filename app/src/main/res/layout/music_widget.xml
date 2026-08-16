@@ -1,229 +1,197 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="2dp">
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@drawable/widget_background">
+
+    <!-- Top section -->
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="14dp"
-        android:background="@drawable/widget_background">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <!-- Song information -->
+        <ImageView
+            android:id="@+id/widget_artwork"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginEnd="12dp"
+            android:scaleType="centerCrop"
+            android:background="@drawable/widget_artwork_card"
+            android:contentDescription="Album artwork" />
 
         <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:orientation="vertical">
 
-            <!-- Album artwork -->
-
-            <FrameLayout
-                android:layout_width="82dp"
-                android:layout_height="82dp"
-                android:layout_marginEnd="14dp">
-
-                <ImageView
-                    android:id="@+id/widget_artwork"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:background="@drawable/widget_artwork_card"
-                    android:contentDescription="Album artwork" />
-
-            </FrameLayout>
-
-            <!-- Text -->
-
-            <LinearLayout
-                android:layout_width="0dp"
+            <TextView
+                android:id="@+id/widget_status"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:text="NOW PLAYING"
+                android:textColor="#AEB4FF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/widget_status"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="NOW PLAYING"
-                    android:textColor="#AEB4FF"
-                    android:textSize="9sp"
-                    android:textStyle="bold"
-                    android:letterSpacing="0.12" />
-
-                <TextView
-                    android:id="@+id/widget_title"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="5dp"
-                    android:text="Nothing playing"
-                    android:textColor="#FFFFFF"
-                    android:textSize="17sp"
-                    android:textStyle="bold"
-                    android:maxLines="2"
-                    android:ellipsize="end" />
-
-                <TextView
-                    android:id="@+id/widget_artist"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Unknown artist"
-                    android:textColor="#B8BBC9"
-                    android:textSize="12sp"
-                    android:maxLines="1"
-                    android:ellipsize="end" />
-
-            </LinearLayout>
-
-        </LinearLayout>
-
-        <!-- Visualiser -->
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="34dp"
-            android:gravity="bottom|center_horizontal"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="9dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="15dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="22dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="13dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="27dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="18dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="30dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="21dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="28dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="16dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="23dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="11dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-            <View
-                android:layout_width="4dp"
-                android:layout_height="19dp"
-                android:layout_margin="2dp"
-                android:background="@drawable/widget_bar" />
-
-        </LinearLayout>
-
-        <!-- Playback controls -->
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="6dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/widget_previous"
-                android:layout_width="50dp"
-                android:layout_height="46dp"
-                android:background="@drawable/widget_control_button"
-                android:text="⏮"
+            <TextView
+                android:id="@+id/widget_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Nothing playing"
                 android:textColor="#FFFFFF"
-                android:textSize="17sp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="0dp" />
-
-            <Button
-                android:id="@+id/widget_play"
-                android:layout_width="58dp"
-                android:layout_height="50dp"
-                android:layout_marginStart="10dp"
-                android:layout_marginEnd="10dp"
-                android:background="@drawable/widget_play_button"
-                android:text="▶"
-                android:textColor="#FFFFFF"
-                android:textSize="20sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="0dp" />
+                android:maxLines="2"
+                android:ellipsize="end" />
 
-            <Button
-                android:id="@+id/widget_next"
-                android:layout_width="50dp"
-                android:layout_height="46dp"
-                android:background="@drawable/widget_control_button"
-                android:text="⏭"
-                android:textColor="#FFFFFF"
-                android:textSize="17sp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="0dp" />
+            <TextView
+                android:id="@+id/widget_artist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="Unknown artist"
+                android:textColor="#B8BBC9"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
         </LinearLayout>
 
     </LinearLayout>
 
-</FrameLayout>
+    <!-- Visualiser -->
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="26dp"
+        android:gravity="bottom|center_horizontal"
+        android:orientation="horizontal">
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="8dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="14dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="20dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="12dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="23dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="16dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="25dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="18dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="22dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="13dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="19dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="10dp"
+            android:layout_margin="2dp"
+            android:background="@drawable/widget_bar" />
+
+    </LinearLayout>
+
+    <!-- Controls -->
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_previous"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:text="⏮"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:background="@drawable/widget_control_button" />
+
+        <TextView
+            android:id="@+id/widget_play"
+            android:layout_width="54dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:text="▶"
+            android:textColor="#FFFFFF"
+            android:textSize="19sp"
+            android:textStyle="bold"
+            android:background="@drawable/widget_play_button" />
+
+        <TextView
+            android:id="@+id/widget_next"
+            android:layout_width="46dp"
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:text="⏭"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:background="@drawable/widget_control_button" />
+
+    </LinearLayout>
+
+</LinearLayout>
