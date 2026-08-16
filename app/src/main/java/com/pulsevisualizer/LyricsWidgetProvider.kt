@@ -26,9 +26,10 @@ class LyricsWidgetProvider :
             Executors.newSingleThreadExecutor()
 
         private val handler =
-            Handler(
-                Looper.getMainLooper()
-            )
+            Handler(Looper.getMainLooper())
+
+        private var cachedContext:
+            Context? = null
 
         private var lastSongKey =
             ""
@@ -41,16 +42,25 @@ class LyricsWidgetProvider :
             false
 
         /*
-         * -1 = before lyrics
-         * -2 = instrumental/silent gap
-         * >= 0 = current lyric index
+         * -1 = before first lyric
+         * -2 = instrumental / silent gap
+         * >= 0 = current lyric
          */
         private var lastDisplayedIndex =
             -1
 
+        /*
+         * Check playback position frequently,
+         * but ONLY update the widget when the
+         * actual lyric changes.
+         */
         private const val UPDATE_INTERVAL =
             100L
 
+        /*
+         * If there is more than this much time
+         * before the next lyric, blank the widget.
+         */
         private const val SILENCE_GAP_MS =
             2500L
 
@@ -67,6 +77,7 @@ class LyricsWidgetProvider :
                     )
                 }
             }
+
 
         data class LyricLine(
             val timeMs: Long,
@@ -120,8 +131,7 @@ class LyricsWidgetProvider :
 
             /*
              * Nothing is playing.
-             *
-             * Keep the widget completely blank.
+             * The widget must be completely blank.
              */
 
             if (
@@ -137,7 +147,10 @@ class LyricsWidgetProvider :
                 lastDisplayedIndex =
                     -1
 
-                showBlank()
+                updateWidgetText(
+                    context,
+                    ""
+                )
 
                 stopPositionUpdates()
 
@@ -158,7 +171,7 @@ class LyricsWidgetProvider :
                     .lowercase()
 
             /*
-             * Detect a new song.
+             * A new song has started.
              */
 
             if (
@@ -176,19 +189,17 @@ class LyricsWidgetProvider :
                     -1
 
                 /*
-                 * Don't display "Loading lyrics..."
-                 * or any metadata.
-                 *
-                 * The widget stays blank while
-                 * lyrics are being downloaded.
+                 * Keep blank while lyrics are
+                 * being retrieved.
                  */
 
-                showBlank()
+                updateWidgetText(
+                    context,
+                    ""
+                )
 
                 fetchLyrics(
                     context,
-                    manager,
-                    widgetIds,
                     cleanedTitle,
                     artist
                 )
@@ -202,8 +213,6 @@ class LyricsWidgetProvider :
 
         private fun fetchLyrics(
             context: Context,
-            manager: AppWidgetManager,
-            widgetIds: IntArray,
             title: String,
             artist: String
         ) {
@@ -254,10 +263,7 @@ class LyricsWidgetProvider :
                             .lowercase()
 
                     /*
-                     * The song changed while the
-                     * network request was running.
-                     *
-                     * Ignore the old result.
+                     * Ignore results from an old song.
                      */
 
                     if (
@@ -272,24 +278,26 @@ class LyricsWidgetProvider :
                         result
 
                     /*
-                     * No synced lyrics were found.
-                     *
-                     * Stay blank.
+                     * No synced lyrics available.
+                     * Leave the widget blank.
                      */
 
                     if (
                         lyricLines.isEmpty()
                     ) {
 
-                        showBlank()
+                        updateWidgetText(
+                            context,
+                            ""
+                        )
 
                         return@post
                     }
 
                     /*
-                     * Immediately determine whether
-                     * the current playback position is
-                     * inside a lyric.
+                     * Immediately calculate the
+                     * correct lyric for the current
+                     * playback position.
                      */
 
                     updateCurrentLine(
@@ -306,28 +314,26 @@ class LyricsWidgetProvider :
         ): List<LyricLine> {
 
             /*
-             * First attempt:
-             *
-             * TITLE + ARTIST
+             * First:
+             * title + artist
              */
 
-            val firstResult =
+            val resultWithArtist =
                 searchLrclib(
                     title,
                     artist
                 )
 
             if (
-                firstResult.isNotEmpty()
+                resultWithArtist.isNotEmpty()
             ) {
 
-                return firstResult
+                return resultWithArtist
             }
 
             /*
              * Fallback:
-             *
-             * TITLE ONLY
+             * title only
              */
 
             return searchLrclib(
@@ -372,9 +378,7 @@ class LyricsWidgetProvider :
                     }
 
                 val connection =
-                    URL(
-                        urlString
-                    )
+                    URL(urlString)
                         .openConnection()
                         as HttpURLConnection
 
@@ -417,9 +421,7 @@ class LyricsWidgetProvider :
                 connection.disconnect()
 
                 val results =
-                    JSONArray(
-                        response
-                    )
+                    JSONArray(response)
 
                 if (
                     results.length() == 0
@@ -480,7 +482,8 @@ class LyricsWidgetProvider :
                     )
 
                 /*
-                 * We specifically need synced lyrics.
+                 * We specifically require
+                 * timestamped lyrics.
                  */
 
                 if (
@@ -515,9 +518,7 @@ class LyricsWidgetProvider :
                     score += 10
 
                 } else if (
-                    normalise(
-                        resultTitle
-                    )
+                    normalise(resultTitle)
                         .contains(
                             normalise(
                                 requestedTitle
@@ -543,9 +544,7 @@ class LyricsWidgetProvider :
                         score += 10
 
                     } else if (
-                        normalise(
-                            resultArtist
-                        )
+                        normalise(resultArtist)
                             .contains(
                                 normalise(
                                     requestedArtist
@@ -599,9 +598,7 @@ class LyricsWidgetProvider :
 
                 val matches =
                     timestampRegex
-                        .findAll(
-                            rawLine
-                        )
+                        .findAll(rawLine)
                         .toList()
 
                 if (
@@ -731,7 +728,19 @@ class LyricsWidgetProvider :
                 lyricLines.isEmpty()
             ) {
 
-                showBlank()
+                if (
+                    lastDisplayedIndex !=
+                    -2
+                ) {
+
+                    lastDisplayedIndex =
+                        -2
+
+                    updateWidgetText(
+                        cachedContext,
+                        ""
+                    )
+                }
 
                 return
             }
@@ -741,11 +750,10 @@ class LyricsWidgetProvider :
                     .getCurrentPositionMs()
 
             /*
-             * BEFORE THE FIRST LYRIC
+             * Before the first lyric:
+             * BLANK.
              *
-             * This is what prevents the first
-             * lyric from appearing during a
-             * 10-second instrumental intro.
+             * This handles instrumental intros.
              */
 
             if (
@@ -761,7 +769,10 @@ class LyricsWidgetProvider :
                     lastDisplayedIndex =
                         -1
 
-                    showBlank()
+                    updateWidgetText(
+                        cachedContext,
+                        ""
+                    )
                 }
 
                 return
@@ -793,13 +804,11 @@ class LyricsWidgetProvider :
                 currentIndex < 0
             ) {
 
-                showBlank()
-
                 return
             }
 
             /*
-             * Check how long until the next lyric.
+             * Check for a large instrumental gap.
              */
 
             val nextIndex =
@@ -816,14 +825,7 @@ class LyricsWidgetProvider :
                     ].timeMs
 
                 val timeUntilNext =
-                    nextTime -
-                    position
-
-                /*
-                 * A gap longer than 2.5 seconds
-                 * is treated as an instrumental/
-                 * silent section.
-                 */
+                    nextTime - position
 
                 if (
                     timeUntilNext >
@@ -838,17 +840,24 @@ class LyricsWidgetProvider :
                         lastDisplayedIndex =
                             -2
 
-                        showBlank()
+                        updateWidgetText(
+                            cachedContext,
+                            ""
+                        )
                     }
 
                     return
                 }
             }
 
-            val currentLine =
-                lyricLines[
-                    currentIndex
-                ]
+            /*
+             * The lyric hasn't changed.
+             *
+             * IMPORTANT:
+             * Don't update the widget.
+             *
+             * This is what eliminates the flashing.
+             */
 
             if (
                 !force &&
@@ -862,23 +871,34 @@ class LyricsWidgetProvider :
             lastDisplayedIndex =
                 currentIndex
 
-            fadeToLine(
-                currentLine.text
+            val text =
+                lyricLines[
+                    currentIndex
+                ].text
+
+            updateWidgetText(
+                cachedContext,
+                text
             )
         }
-                private fun showBlank() {
+                private fun updateWidgetText(
+            context: Context?,
+            text: String
+        ) {
 
-            val context =
-                cachedContext
+            val safeContext =
+                context
                     ?: return
 
             val manager =
                 AppWidgetManager
-                    .getInstance(context)
+                    .getInstance(
+                        safeContext
+                    )
 
             val component =
                 ComponentName(
-                    context,
+                    safeContext,
                     LyricsWidgetProvider::class.java
                 )
 
@@ -891,28 +911,49 @@ class LyricsWidgetProvider :
                 widgetIds.isEmpty()
             ) {
 
+                stopPositionUpdates()
+
                 return
             }
 
+            /*
+             * ONE RemoteViews update.
+             *
+             * No alpha loop.
+             * No repeated redraws.
+             * No flashing.
+             */
+
             val views =
                 RemoteViews(
-                    context.packageName,
+                    safeContext.packageName,
                     R.layout.widget_lyrics
                 )
 
             views.setTextViewText(
                 R.id.lyrics_text,
-                ""
+                text
             )
+
+            /*
+             * Keep the lyric visible whenever
+             * there is actually a lyric.
+             */
 
             views.setFloat(
                 R.id.lyrics_text,
                 "setAlpha",
-                0f
+                if (
+                    text.isBlank()
+                ) {
+                    0f
+                } else {
+                    1f
+                }
             )
 
             setClickAction(
-                context,
+                safeContext,
                 views,
                 widgetIds
             )
@@ -925,205 +966,6 @@ class LyricsWidgetProvider :
                     widgetId,
                     views
                 )
-            }
-        }
-
-
-        private fun fadeToLine(
-            text: String
-        ) {
-
-            val context =
-                cachedContext
-                    ?: return
-
-            val manager =
-                AppWidgetManager
-                    .getInstance(context)
-
-            val component =
-                ComponentName(
-                    context,
-                    LyricsWidgetProvider::class.java
-                )
-
-            val widgetIds =
-                manager.getAppWidgetIds(
-                    component
-                )
-
-            if (
-                widgetIds.isEmpty()
-            ) {
-
-                return
-            }
-
-            /*
-             * First fade the existing lyric out.
-             */
-
-            fadeAlpha(
-                context,
-                manager,
-                widgetIds,
-                1f,
-                0f,
-                180L
-            ) {
-
-                /*
-                 * Put the new lyric into the
-                 * invisible widget.
-                 */
-
-                val views =
-                    RemoteViews(
-                        context.packageName,
-                        R.layout.widget_lyrics
-                    )
-
-                views.setTextViewText(
-                    R.id.lyrics_text,
-                    text
-                )
-
-                views.setFloat(
-                    R.id.lyrics_text,
-                    "setAlpha",
-                    0f
-                )
-
-                setClickAction(
-                    context,
-                    views,
-                    widgetIds
-                )
-
-                for (
-                    widgetId in widgetIds
-                ) {
-
-                    manager.updateAppWidget(
-                        widgetId,
-                        views
-                    )
-                }
-
-                /*
-                 * Fade the new lyric in.
-                 */
-
-                fadeAlpha(
-                    context,
-                    manager,
-                    widgetIds,
-                    0f,
-                    1f,
-                    220L
-                )
-            }
-        }
-
-
-        private fun fadeAlpha(
-            context: Context,
-            manager: AppWidgetManager,
-            widgetIds: IntArray,
-            from: Float,
-            to: Float,
-            duration: Long,
-            onFinished:
-                (() -> Unit)? = null
-        ) {
-
-            val steps =
-                8
-
-            val stepDelay =
-                duration /
-                steps
-
-            for (
-                step in
-                0..steps
-            ) {
-
-                handler.postDelayed({
-
-                    val progress =
-                        step.toFloat() /
-                        steps.toFloat()
-
-                    val alpha =
-                        from +
-                        (
-                            (to - from) *
-                            progress
-                        )
-
-                    val views =
-                        RemoteViews(
-                            context.packageName,
-                            R.layout.widget_lyrics
-                        )
-
-                    /*
-                     * If we are fading out, preserve
-                     * the currently displayed lyric.
-                     */
-
-                    val currentText =
-                        if (
-                            lastDisplayedIndex >= 0 &&
-                            lastDisplayedIndex <
-                            lyricLines.size
-                        ) {
-
-                            lyricLines[
-                                lastDisplayedIndex
-                            ].text
-
-                        } else {
-
-                            ""
-                        }
-
-                    views.setTextViewText(
-                        R.id.lyrics_text,
-                        currentText
-                    )
-
-                    views.setFloat(
-                        R.id.lyrics_text,
-                        "setAlpha",
-                        alpha
-                    )
-
-                    setClickAction(
-                        context,
-                        views,
-                        widgetIds
-                    )
-
-                    for (
-                        widgetId in widgetIds
-                    ) {
-
-                        manager.updateAppWidget(
-                            widgetId,
-                            views
-                        )
-                    }
-
-                    if (
-                        step == steps
-                    ) {
-
-                        onFinished?.invoke()
-                    }
-
-                }, stepDelay * step)
             }
         }
 
@@ -1170,64 +1012,6 @@ class LyricsWidgetProvider :
                 R.id.lyrics_root,
                 pendingIntent
             )
-        }
-
-
-        private fun updateWidgets(
-            context: Context,
-            manager: AppWidgetManager,
-            widgetIds: IntArray,
-            text: String
-        ) {
-
-            cachedContext =
-                context.applicationContext
-
-            for (
-                widgetId in widgetIds
-            ) {
-
-                try {
-
-                    val views =
-                        RemoteViews(
-                            context.packageName,
-                            R.layout.widget_lyrics
-                        )
-
-                    views.setTextViewText(
-                        R.id.lyrics_text,
-                        text
-                    )
-
-                    views.setFloat(
-                        R.id.lyrics_text,
-                        "setAlpha",
-                        if (
-                            text.isBlank()
-                        ) {
-                            0f
-                        } else {
-                            1f
-                        }
-                    )
-
-                    setClickAction(
-                        context,
-                        views,
-                        intArrayOf(widgetId)
-                    )
-
-                    manager.updateAppWidget(
-                        widgetId,
-                        views
-                    )
-
-                } catch (
-                    _: Exception
-                ) {
-                }
-            }
         }
 
 
@@ -1295,11 +1079,6 @@ class LyricsWidgetProvider :
                 )
                 .trim()
         }
-
-
-        private var cachedContext:
-            Context? =
-            null
     }
 
 
@@ -1363,5 +1142,4 @@ class LyricsWidgetProvider :
         cachedContext =
             null
     }
-    }
-    
+}
