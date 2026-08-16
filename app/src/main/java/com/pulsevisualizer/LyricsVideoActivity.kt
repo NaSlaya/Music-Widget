@@ -1,9 +1,7 @@
 package com.pulsevisualizer
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
-import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
@@ -21,19 +19,24 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.max
 import kotlin.math.min
 
-class LyricsVideoActivity : ComponentActivity() {
+class LyricsVideoActivity :
+    ComponentActivity() {
 
-    private lateinit var lyricsView: LyricsVideoView
+    private lateinit var lyricsView:
+        LyricsVideoView
 
-    private var lyricsJob: Job? = null
+    private var lyricsJob:
+        Job? = null
 
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
-        super.onCreate(savedInstanceState)
+
+        super.onCreate(
+            savedInstanceState
+        )
 
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -42,34 +45,39 @@ class LyricsVideoActivity : ComponentActivity() {
 
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 
         lyricsView =
-            LyricsVideoView(this)
+            LyricsVideoView(
+                this
+            )
 
         setContentView(
             lyricsView
         )
 
-        MediaRepository.start(this)
+        MediaRepository.start(
+            this
+        )
 
         lifecycleScope.launch {
 
             MediaRepository.media.collect {
-                updateMedia()
+
+                mediaChanged()
             }
         }
 
         startPositionLoop()
 
-        updateMedia()
+        mediaChanged()
     }
 
-    private fun updateMedia() {
+    private fun mediaChanged() {
 
         val media =
             MediaRepository.media.value
@@ -97,10 +105,16 @@ class LyricsVideoActivity : ComponentActivity() {
                 ignoreCase = true
             )
         ) {
+
             lyricsJob?.cancel()
 
-            lyricsView.setLoading(false)
-            lyricsView.setLyrics(null)
+            lyricsView.setLoading(
+                false
+            )
+
+            lyricsView.setLyrics(
+                null
+            )
 
             return
         }
@@ -116,53 +130,56 @@ class LyricsVideoActivity : ComponentActivity() {
         artist: String
     ) {
 
-        val key =
-            (
-                title.trim() +
-                    "|" +
-                    artist.trim()
-                ).lowercase()
-
-        if (
-            lyricsView.currentSongKey ==
-            key
-        ) {
-            return
-        }
-
-        lyricsView.currentSongKey =
-            key
-
         lyricsJob?.cancel()
+
+        lyricsView.setLyrics(
+            null
+        )
+
+        lyricsView.setLoading(
+            true
+        )
 
         lyricsJob =
             lifecycleScope.launch {
-
-                lyricsView.setLoading(true)
 
                 val result =
                     kotlinx.coroutines
                         .withContext(
                             kotlinx.coroutines.Dispatchers.IO
                         ) {
-                            LyricsRepository.getLyrics(
-                                this@LyricsVideoActivity,
-                                title,
-                                artist
-                            )
+
+                            try {
+
+                                LyricsRepository.getLyrics(
+                                    this@LyricsVideoActivity,
+                                    title,
+                                    artist
+                                )
+
+                            } catch (_: Exception) {
+
+                                LyricsDocument(
+                                    emptyList(),
+                                    source = "none",
+                                    confidence = 0f
+                                )
+                            }
                         }
 
                 if (
-                    !isFinishing
+                    isFinishing
                 ) {
-                    lyricsView.setLyrics(
-                        result
-                    )
-
-                    lyricsView.setLoading(
-                        false
-                    )
+                    return@launch
                 }
+
+                lyricsView.setLyrics(
+                    result
+                )
+
+                lyricsView.setLoading(
+                    false
+                )
             }
     }
 
@@ -171,21 +188,15 @@ class LyricsVideoActivity : ComponentActivity() {
         lifecycleScope.launch {
 
             while (
-                true
+                !isFinishing
             ) {
-
-                if (
-                    isFinishing
-                ) {
-                    break
-                }
 
                 lyricsView.setPosition(
                     MediaRepository
                         .getCurrentPositionMs()
                 )
 
-                delay(30L)
+                delay(40L)
             }
         }
     }
@@ -199,10 +210,10 @@ class LyricsVideoActivity : ComponentActivity() {
 }
 
 private class LyricsVideoView(
-    context: Context
+    context: android.content.Context
 ) : View(context) {
 
-    private val textPaint =
+    private val paint =
         Paint(
             Paint.ANTI_ALIAS_FLAG or
                 Paint.SUBPIXEL_TEXT_FLAG
@@ -213,13 +224,8 @@ private class LyricsVideoView(
             Paint.ANTI_ALIAS_FLAG
         )
 
-    private val backgroundPaint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG
-        )
-
     private var title =
-        ""
+        "Nothing playing"
 
     private var artist =
         ""
@@ -227,10 +233,10 @@ private class LyricsVideoView(
     private var artwork:
         Bitmap? = null
 
-    private var document:
+    private var lyrics:
         LyricsDocument? = null
 
-    private var positionMs =
+    private var position =
         0L
 
     private var loading =
@@ -239,35 +245,20 @@ private class LyricsVideoView(
     private var style =
         0
 
-    private var lastLineIndex =
+    private var previousIndex =
         Int.MIN_VALUE
 
     private var animationStart =
-        0L
+        SystemClock.uptimeMillis()
 
-    private var touchDownX =
+    private var downX =
         0f
 
-    private var touchDownY =
+    private var downY =
         0f
 
-    var currentSongKey =
-        ""
-
-    private val styleCount =
+    private val styles =
         5
-
-    init {
-
-        isFocusable =
-            true
-
-        textPaint.typeface =
-            Typeface.create(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-            )
-    }
 
     fun setSong(
         title: String,
@@ -275,37 +266,28 @@ private class LyricsVideoView(
         artwork: Bitmap?
     ) {
 
-        val newTitle =
-            title.trim()
-
-        val newArtist =
-            artist.trim()
-
         val changed =
-            this.title != newTitle ||
-            this.artist != newArtist
+            this.title != title ||
+                this.artist != artist
 
         this.title =
-            newTitle
+            title.ifBlank {
+                "Nothing playing"
+            }
 
         this.artist =
-            newArtist
+            artist
 
         this.artwork =
             artwork
 
-        if (
-            changed
-        ) {
+        if (changed) {
 
-            currentSongKey =
-                ""
-
-            lastLineIndex =
+            previousIndex =
                 Int.MIN_VALUE
 
-            document =
-                null
+            animationStart =
+                SystemClock.uptimeMillis()
         }
 
         invalidate()
@@ -315,10 +297,10 @@ private class LyricsVideoView(
         document: LyricsDocument?
     ) {
 
-        this.document =
+        lyrics =
             document
 
-        lastLineIndex =
+        previousIndex =
             Int.MIN_VALUE
 
         animationStart =
@@ -328,21 +310,23 @@ private class LyricsVideoView(
     }
 
     fun setLoading(
-        loading: Boolean
+        value: Boolean
     ) {
 
-        this.loading =
-            loading
+        loading =
+            value
 
         invalidate()
     }
 
     fun setPosition(
-        position: Long
+        value: Long
     ) {
 
-        positionMs =
-            position.coerceAtLeast(0L)
+        position =
+            value.coerceAtLeast(
+                0L
+            )
 
         invalidate()
     }
@@ -351,7 +335,9 @@ private class LyricsVideoView(
         canvas: Canvas
     ) {
 
-        super.onDraw(canvas)
+        super.onDraw(
+            canvas
+        )
 
         val width =
             width.toFloat()
@@ -359,26 +345,19 @@ private class LyricsVideoView(
         val height =
             height.toFloat()
 
-        if (
-            width <= 0f ||
-            height <= 0f
-        ) {
-            return
-        }
-
         drawBackground(
             canvas,
             width,
             height
         )
 
-        drawArtworkAtmosphere(
+        drawArtworkGlow(
             canvas,
             width,
             height
         )
 
-        drawTopBar(
+        drawHeader(
             canvas,
             width
         )
@@ -394,21 +373,21 @@ private class LyricsVideoView(
             )
 
             postInvalidateDelayed(
-                100L
+                30L
             )
 
             return
         }
 
-        val currentDocument =
-            document
+        val document =
+            lyrics
 
         if (
-            currentDocument == null ||
-            currentDocument.lines.isEmpty()
+            document == null ||
+            document.lines.isEmpty()
         ) {
 
-            drawEmptyState(
+            drawNoLyrics(
                 canvas,
                 width,
                 height
@@ -421,7 +400,7 @@ private class LyricsVideoView(
             canvas,
             width,
             height,
-            currentDocument
+            document
         )
 
         postInvalidateDelayed(
@@ -443,14 +422,14 @@ private class LyricsVideoView(
                 0 ->
                     intArrayOf(
                         Color.rgb(
-                            62,
-                            20,
-                            110
+                            78,
+                            25,
+                            130
                         ),
                         Color.rgb(
-                            20,
                             8,
-                            38
+                            5,
+                            15
                         ),
                         Color.BLACK
                     )
@@ -458,13 +437,13 @@ private class LyricsVideoView(
                 1 ->
                     intArrayOf(
                         Color.rgb(
-                            5,
-                            75,
-                            115
+                            8,
+                            55,
+                            95
                         ),
                         Color.rgb(
-                            8,
                             20,
+                            8,
                             55
                         ),
                         Color.BLACK
@@ -473,12 +452,12 @@ private class LyricsVideoView(
                 2 ->
                     intArrayOf(
                         Color.rgb(
-                            115,
+                            110,
                             30,
-                            20
+                            10
                         ),
                         Color.rgb(
-                            50,
+                            45,
                             8,
                             20
                         ),
@@ -489,13 +468,13 @@ private class LyricsVideoView(
                     intArrayOf(
                         Color.rgb(
                             8,
-                            100,
-                            75
+                            90,
+                            65
                         ),
                         Color.rgb(
                             5,
-                            35,
-                            35
+                            25,
+                            25
                         ),
                         Color.BLACK
                     )
@@ -503,8 +482,8 @@ private class LyricsVideoView(
                 else ->
                     intArrayOf(
                         Color.rgb(
-                            85,
-                            70,
+                            100,
+                            80,
                             10
                         ),
                         Color.rgb(
@@ -516,18 +495,14 @@ private class LyricsVideoView(
                     )
             }
 
-        backgroundPaint.shader =
+        paint.shader =
             LinearGradient(
                 0f,
                 0f,
                 width,
                 height,
                 colors,
-                floatArrayOf(
-                    0f,
-                    0.48f,
-                    1f
-                ),
+                null,
                 Shader.TileMode.CLAMP
             )
 
@@ -536,14 +511,14 @@ private class LyricsVideoView(
             0f,
             width,
             height,
-            backgroundPaint
+            paint
         )
 
-        backgroundPaint.shader =
+        paint.shader =
             null
     }
 
-    private fun drawArtworkAtmosphere(
+    private fun drawArtworkGlow(
         canvas: Canvas,
         width: Float,
         height: Float
@@ -559,12 +534,6 @@ private class LyricsVideoView(
             return
         }
 
-        val radius =
-            min(
-                width,
-                height
-            ) * 0.62f
-
         glowPaint.shader =
             BitmapShader(
                 bitmap,
@@ -573,127 +542,104 @@ private class LyricsVideoView(
             )
 
         glowPaint.alpha =
-            30
-
-        glowPaint.maskFilter =
-            BlurMaskFilter(
-                70f,
-                BlurMaskFilter.Blur.NORMAL
-            )
+            35
 
         canvas.drawCircle(
             width * 0.5f,
-            height * 0.48f,
-            radius,
+            height * 0.43f,
+            min(
+                width,
+                height
+            ) * 0.55f,
             glowPaint
         )
-
-        glowPaint.maskFilter =
-            null
 
         glowPaint.shader =
             null
     }
-
-    private fun drawTopBar(
+        private fun drawHeader(
         canvas: Canvas,
         width: Float
     ) {
 
-        val density =
-            resources.displayMetrics.density
-
-        textPaint.typeface =
+        paint.typeface =
             Typeface.create(
                 Typeface.DEFAULT,
                 Typeface.BOLD
             )
 
-        textPaint.textSize =
-            12f * density
-
-        textPaint.color =
+        paint.color =
             Color.WHITE
 
-        textPaint.alpha =
-            170
+        paint.alpha =
+            220
+
+        paint.textSize =
+            13f *
+                resources.displayMetrics
+                    .scaledDensity
 
         canvas.drawText(
-            "LYRICS",
-            24f * density,
-            30f * density,
-            textPaint
+            "LYRICS VIDEO",
+            28f,
+            44f,
+            paint
         )
 
-        textPaint.textSize =
-            9f * density
+        paint.textSize =
+            10f *
+                resources.displayMetrics
+                    .scaledDensity
 
-        textPaint.alpha =
-            90
-
-        val styleText =
-            "${style + 1}/$styleCount"
+        paint.alpha =
+            130
 
         canvas.drawText(
-            styleText,
-            width -
-                24f * density -
-                textPaint.measureText(
-                    styleText
-                ),
-            30f * density,
-            textPaint
+            "${style + 1}/$styles",
+            width - 48f,
+            44f,
+            paint
         )
 
-        textPaint.textSize =
-            17f * density
+        paint.textSize =
+            20f *
+                resources.displayMetrics
+                    .scaledDensity
 
-        textPaint.alpha =
-            245
-
-        val safeTitle =
-            if (
-                title.isBlank()
-            ) {
-                "Nothing playing"
-            } else {
-                title
-            }
+        paint.alpha =
+            255
 
         canvas.drawText(
-            truncateText(
-                safeTitle,
-                width -
-                    48f * density
+            ellipsize(
+                title,
+                width - 56f
             ),
-            24f * density,
-            57f * density,
-            textPaint
+            28f,
+            84f,
+            paint
         )
+
+        paint.textSize =
+            13f *
+                resources.displayMetrics
+                    .scaledDensity
+
+        paint.alpha =
+            150
 
         if (
             artist.isNotBlank()
         ) {
 
-            textPaint.textSize =
-                11f * density
-
-            textPaint.alpha =
-                130
-
             canvas.drawText(
-                truncateText(
-                    artist,
-                    width -
-                        48f * density
-                ),
-                24f * density,
-                76f * density,
-                textPaint
+                artist,
+                28f,
+                106f,
+                paint
             )
         }
 
-        textPaint.alpha =
+        paint.alpha =
             255
     }
 
@@ -704,7 +650,20 @@ private class LyricsVideoView(
     ) {
 
         val density =
-            resources.displayMetrics.density
+            resources.displayMetrics
+                .scaledDensity
+
+        paint.color =
+            Color.WHITE
+
+        paint.typeface =
+            Typeface.create(
+                Typeface.DEFAULT,
+                Typeface.BOLD
+            )
+
+        paint.textSize =
+            20f * density
 
         val pulse =
             (
@@ -713,35 +672,21 @@ private class LyricsVideoView(
             ).toFloat() /
                 1200f
 
-        val alpha =
+        paint.alpha =
             (
                 120f +
                     100f *
-                    (
-                        0.5f +
-                            0.5f *
-                            kotlin.math.sin(
-                                pulse *
-                                    Math.PI *
-                                    2.0
-                            )
-                    )
+                        (
+                            0.5f +
+                                0.5f *
+                                    kotlin.math
+                                        .sin(
+                                            pulse *
+                                                Math.PI *
+                                                2.0
+                                        )
+                        )
             ).toInt()
-
-        textPaint.typeface =
-            Typeface.create(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-            )
-
-        textPaint.textSize =
-            20f * density
-
-        textPaint.color =
-            Color.WHITE
-
-        textPaint.alpha =
-            alpha
 
         val text =
             "Finding lyrics..."
@@ -750,62 +695,49 @@ private class LyricsVideoView(
             text,
             (
                 width -
-                    textPaint.measureText(
+                    paint.measureText(
                         text
                     )
             ) / 2f,
-            height * 0.53f,
-            textPaint
+            height * 0.55f,
+            paint
         )
 
-        textPaint.alpha =
+        paint.alpha =
             255
-
-        postInvalidateDelayed(
-            30L
-        )
     }
 
-    private fun drawEmptyState(
+    private fun drawNoLyrics(
         canvas: Canvas,
         width: Float,
         height: Float
     ) {
 
-        val density =
-            resources.displayMetrics.density
-
-        val media =
-            MediaRepository.media.value
-
         if (
-            media.title.isBlank() ||
-            media.title.equals(
+            title.equals(
                 "Nothing playing",
-                ignoreCase = true
-            ) ||
-            media.title.equals(
-                "Unknown title",
                 ignoreCase = true
             )
         ) {
             return
         }
 
-        textPaint.typeface =
+        paint.color =
+            Color.WHITE
+
+        paint.typeface =
             Typeface.create(
                 Typeface.DEFAULT,
                 Typeface.BOLD
             )
 
-        textPaint.textSize =
-            20f * density
+        paint.textSize =
+            19f *
+                resources.displayMetrics
+                    .scaledDensity
 
-        textPaint.color =
-            Color.WHITE
-
-        textPaint.alpha =
-            150
+        paint.alpha =
+            145
 
         val text =
             "No lyrics found"
@@ -814,18 +746,19 @@ private class LyricsVideoView(
             text,
             (
                 width -
-                    textPaint.measureText(
+                    paint.measureText(
                         text
                     )
             ) / 2f,
-            height * 0.53f,
-            textPaint
+            height * 0.55f,
+            paint
         )
 
-        textPaint.alpha =
+        paint.alpha =
             255
     }
-        private fun drawLyrics(
+
+    private fun drawLyrics(
         canvas: Canvas,
         width: Float,
         height: Float,
@@ -835,123 +768,106 @@ private class LyricsVideoView(
         val lines =
             document.lines
 
-        if (
-            lines.isEmpty()
+        var index =
+            -1
+
+        for (
+            i in lines.indices
         ) {
-            return
+
+            if (
+                lines[i].timeMs <=
+                position
+            ) {
+
+                index =
+                    i
+
+            } else {
+
+                break
+            }
         }
 
-        val currentIndex =
-            findCurrentLineIndex(
-                lines
-            )
-
         if (
-            currentIndex !=
-            lastLineIndex
+            index < 0
         ) {
-
-            lastLineIndex =
-                currentIndex
-
-            animationStart =
-                SystemClock.uptimeMillis()
-        }
-
-        if (
-            currentIndex < 0
-        ) {
-
-            drawInstrumentalState(
-                canvas,
-                width,
-                height
-            )
 
             return
         }
 
         val current =
-            lines.getOrNull(
-                currentIndex
-            )
+            lines[index]
 
         if (
-            current == null
+            position >=
+            current.endMs
         ) {
+
             return
         }
 
-        val previous =
-            lines.getOrNull(
-                currentIndex - 1
-            )
-
-        val next =
-            lines.getOrNull(
-                currentIndex + 1
-            )
-
-        val active =
-            isLineActive(
-                current
-            )
-
         if (
-            !active
+            index !=
+            previousIndex
         ) {
 
-            drawInstrumentalState(
-                canvas,
-                width,
-                height
-            )
+            previousIndex =
+                index
 
-            return
+            animationStart =
+                SystemClock.uptimeMillis()
         }
 
         val elapsed =
-            (
-                SystemClock.uptimeMillis() -
-                    animationStart
-            )
-                .coerceAtLeast(0L)
+            SystemClock.uptimeMillis() -
+                animationStart
 
-        val rawProgress =
+        val progress =
             (
                 elapsed
                     .coerceAtMost(
-                        500L
+                        450L
                     )
                     .toFloat()
-                / 500f
+                / 450f
             )
 
         val eased =
             1f -
                 (
                     1f -
-                        rawProgress
+                        progress
                 ) *
-                (
-                    1f -
-                        rawProgress
-                )
+                    (
+                        1f -
+                            progress
+                    )
 
         val centerY =
-            height * 0.51f
+            height * 0.52f
+
+        val previous =
+            lines.getOrNull(
+                index - 1
+            )
+
+        val next =
+            lines.getOrNull(
+                index + 1
+            )
 
         if (
             previous != null
         ) {
 
-            drawSecondaryLine(
+            drawCenteredText(
                 canvas,
                 previous.text,
                 width,
-                centerY -
-                    105f,
-                0.28f
+                centerY - 115f,
+                17f,
+                65
             )
         }
 
@@ -967,91 +883,15 @@ private class LyricsVideoView(
             next != null
         ) {
 
-            drawSecondaryLine(
+            drawCenteredText(
                 canvas,
                 next.text,
                 width,
-                centerY +
-                    112f,
-                0.36f
+                centerY + 115f,
+                17f,
+                65
             )
         }
-
-        drawProgressBar(
-            canvas,
-            width,
-            height,
-            current
-        )
-    }
-
-    private fun drawInstrumentalState(
-        canvas: Canvas,
-        width: Float,
-        height: Float
-    ) {
-
-        val density =
-            resources.displayMetrics.density
-
-        val pulse =
-            (
-                SystemClock.uptimeMillis()
-                    % 1800L
-            ).toFloat() /
-                1800f
-
-        val alpha =
-            (
-                70f +
-                    50f *
-                    (
-                        0.5f +
-                            0.5f *
-                            kotlin.math.sin(
-                                pulse *
-                                    Math.PI *
-                                    2.0
-                            )
-                    )
-            ).toInt()
-
-        textPaint.typeface =
-            Typeface.create(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-            )
-
-        textPaint.textSize =
-            15f * density
-
-        textPaint.color =
-            Color.WHITE
-
-        textPaint.alpha =
-            alpha
-
-        val text =
-            "♪"
-
-        canvas.drawText(
-            text,
-            (
-                width -
-                    textPaint.measureText(
-                        text
-                    )
-            ) / 2f,
-            height * 0.53f,
-            textPaint
-        )
-
-        textPaint.alpha =
-            255
-
-        postInvalidateDelayed(
-            30L
-        )
     }
 
     private fun drawCurrentLine(
@@ -1063,25 +903,25 @@ private class LyricsVideoView(
     ) {
 
         val density =
-            resources.displayMetrics.density
-
-        val baseSize =
-            32f * density
-
-        val scale =
-            0.96f +
-                0.04f * animation
+            resources.displayMetrics
+                .scaledDensity
 
         val size =
-            baseSize * scale
+            34f *
+                density *
+                (
+                    0.96f +
+                        0.04f *
+                            animation
+                )
 
-        textPaint.typeface =
+        paint.typeface =
             Typeface.create(
                 Typeface.DEFAULT,
                 Typeface.BOLD
             )
 
-        textPaint.textSize =
+        paint.textSize =
             size
 
         val words =
@@ -1104,38 +944,65 @@ private class LyricsVideoView(
         }
 
         val currentWord =
-            LyricsTiming.findCurrentWord(
-                words,
-                positionMs
+            findCurrentWord(
+                words
             )
-
-        val allText =
-            words.joinToString(
-                " "
-            ) {
-                it.text
-            }
 
         val maxWidth =
             width * 0.90f
 
-        val fullWidth =
-            textPaint.measureText(
-                allText
-            )
+        val completeWidth =
+            words.sumOf {
+                paint.measureText(
+                    it.text
+                ).toDouble()
+            }.toFloat() +
+                (
+                    words.size - 1
+                ) *
+                    paint.measureText(
+                        " "
+                    )
 
         if (
-            fullWidth <= maxWidth
+            completeWidth <=
+            maxWidth
         ) {
 
-            drawSingleLineWords(
-                canvas,
-                words,
-                currentWord,
-                width,
-                centerY,
-                size
-            )
+            var x =
+                (
+                    width -
+                        completeWidth
+                ) / 2f
+
+            for (
+                i in words.indices
+            ) {
+
+                val word =
+                    words[i]
+
+                val wordWidth =
+                    paint.measureText(
+                        word.text
+                    )
+
+                drawWord(
+                    canvas,
+                    word,
+                    i,
+                    currentWord,
+                    x,
+                    centerY,
+                    size
+                )
+
+                x +=
+                    wordWidth +
+                        paint.measureText(
+                            " "
+                        )
+            }
 
         } else {
 
@@ -1150,73 +1017,100 @@ private class LyricsVideoView(
         }
     }
 
-    private fun drawSingleLineWords(
+    private fun findCurrentWord(
+        words: List<LyricWord>
+    ): Int {
+
+        for (
+            i in words.indices
+        ) {
+
+            if (
+                position >=
+                words[i].startMs &&
+                position <
+                words[i].endMs
+            ) {
+
+                return i
+            }
+        }
+
+        return -1
+    }
+
+    private fun drawWord(
         canvas: Canvas,
-        words: List<LyricWord>,
+        word: LyricWord,
+        index: Int,
         currentWord: Int,
-        width: Float,
-        centerY: Float,
+        x: Float,
+        y: Float,
         size: Float
     ) {
 
-        textPaint.textSize =
+        paint.textSize =
             size
 
-        var totalWidth =
-            0f
-
-        for (
-            word in words
+        if (
+            index ==
+            currentWord
         ) {
 
-            totalWidth +=
-                textPaint.measureText(
-                    word.text
-                )
+            glowPaint.color =
+                Color.WHITE
 
-            totalWidth +=
-                textPaint.measureText(
-                    " "
-                )
-        }
-
-        val startX =
-            (
-                width -
-                    totalWidth
-            ) / 2f
-
-        var x =
-            startX
-
-        for (
-            index in words.indices
-        ) {
-
-            val word =
-                words[index]
-
-            val wordWidth =
-                textPaint.measureText(
-                    word.text
-                )
-
-            drawWord(
-                canvas,
-                word,
-                index,
-                currentWord,
-                x,
-                centerY,
+            glowPaint.textSize =
                 size
+
+            glowPaint.typeface =
+                Typeface.create(
+                    Typeface.DEFAULT,
+                    Typeface.BOLD
+                )
+
+            glowPaint.alpha =
+                90
+
+            canvas.drawText(
+                word.text,
+                x,
+                y,
+                glowPaint
             )
 
-            x +=
-                wordWidth +
-                    textPaint.measureText(
-                        " "
-                    )
+            paint.color =
+                Color.WHITE
+
+            paint.alpha =
+                255
+
+        } else {
+
+            paint.color =
+                Color.WHITE
+
+            paint.alpha =
+                if (
+                    currentWord >= 0 &&
+                    index <
+                    currentWord
+                ) {
+                    235
+                } else {
+                    105
+                }
         }
+
+        canvas.drawText(
+            word.text,
+            x,
+            y,
+            paint
+        )
+
+        paint.alpha =
+            255
     }
 
     private fun drawWrappedWords(
@@ -1228,7 +1122,7 @@ private class LyricsVideoView(
         size: Float
     ) {
 
-        textPaint.textSize =
+        paint.textSize =
             size
 
         val maxWidth =
@@ -1239,7 +1133,7 @@ private class LyricsVideoView(
                 MutableList<Pair<Int, LyricWord>>
             >()
 
-        var currentRow =
+        var row =
             mutableListOf<
                 Pair<Int, LyricWord>
             >()
@@ -1248,67 +1142,68 @@ private class LyricsVideoView(
             0f
 
         for (
-            index in words.indices
+            i in words.indices
         ) {
 
             val word =
-                words[index]
+                words[i]
 
-            val widthOfWord =
-                textPaint.measureText(
+            val wordWidth =
+                paint.measureText(
                     word.text
                 )
 
             val space =
                 if (
-                    currentRow.isEmpty()
+                    row.isEmpty()
                 ) {
                     0f
                 } else {
-                    textPaint.measureText(
+                    paint.measureText(
                         " "
                     )
                 }
 
             if (
-                currentRow.isNotEmpty() &&
+                row.isNotEmpty() &&
                 rowWidth +
                     space +
-                    widthOfWord >
+                    wordWidth >
                     maxWidth
             ) {
 
                 rows.add(
-                    currentRow
+                    row
                 )
 
-                currentRow =
+                row =
                     mutableListOf()
 
                 rowWidth =
                     0f
             }
 
-            currentRow.add(
-                index to word
+            row.add(
+                i to word
             )
 
             rowWidth +=
                 if (
-                    currentRow.size == 1
+                    row.size == 1
                 ) {
-                    widthOfWord
+                    wordWidth
                 } else {
                     space +
-                        widthOfWord
+                        wordWidth
                 }
         }
 
         if (
-            currentRow.isNotEmpty()
+            row.isNotEmpty()
         ) {
+
             rows.add(
-                currentRow
+                row
             )
         }
 
@@ -1325,39 +1220,38 @@ private class LyricsVideoView(
                 size
 
         for (
-            row in rows
+            currentRow in rows
         ) {
 
-            var rowWidth =
+            var totalWidth =
                 0f
 
             for (
-                (_, word) in row
+                (_, word) in currentRow
             ) {
 
-                rowWidth +=
-                    textPaint.measureText(
+                totalWidth +=
+                    paint.measureText(
                         word.text
-                    )
-
-                rowWidth +=
-                    textPaint.measureText(
-                        " "
-                    )
+                    ) +
+                        paint.measureText(
+                            " "
+                        )
             }
 
             var x =
                 (
                     width -
-                        rowWidth
+                        totalWidth
                 ) / 2f
 
             for (
-                (index, word) in row
+                (index, word)
+                in currentRow
             ) {
 
                 val wordWidth =
-                    textPaint.measureText(
+                    paint.measureText(
                         word.text
                     )
 
@@ -1373,207 +1267,16 @@ private class LyricsVideoView(
 
                 x +=
                     wordWidth +
-                    textPaint.measureText(
-                        " "
-                    )
+                        paint.measureText(
+                            " "
+                        )
             }
 
             y +=
                 lineHeight
         }
     }
-
-    private fun drawWord(
-        canvas: Canvas,
-        word: LyricWord,
-        index: Int,
-        currentWord: Int,
-        x: Float,
-        y: Float,
-        size: Float
-    ) {
-
-        val isCurrent =
-            index == currentWord
-
-        val hasPassed =
-            currentWord >= 0 &&
-                index < currentWord
-
-        val isFuture =
-            !hasPassed &&
-                !isCurrent
-
-        textPaint.typeface =
-            Typeface.create(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-            )
-
-        textPaint.textSize =
-            size
-
-        if (
-            isCurrent
-        ) {
-
-            drawHighlightedWord(
-                canvas,
-                word,
-                x,
-                y,
-                size
-            )
-
-        } else {
-
-            textPaint.color =
-                Color.WHITE
-
-            textPaint.alpha =
-                when {
-
-                    hasPassed ->
-                        240
-
-                    isFuture ->
-                        115
-
-                    else ->
-                        150
-                }
-
-            canvas.drawText(
-                word.text,
-                x,
-                y,
-                textPaint
-            )
-        }
-
-        textPaint.alpha =
-            255
-    }
-
-    private fun drawHighlightedWord(
-        canvas: Canvas,
-        word: LyricWord,
-        x: Float,
-        y: Float,
-        size: Float
-    ) {
-
-        textPaint.textSize =
-            size
-
-        val progress =
-            LyricsTiming.wordProgress(
-                word,
-                positionMs
-            )
-                .coerceIn(
-                    0f,
-                    1f
-                )
-
-        val glowAlpha =
-            (
-                65f +
-                    50f *
-                    kotlin.math.sin(
-                        progress *
-                            Math.PI
-                    )
-            )
-                .toInt()
-                .coerceIn(
-                    45,
-                    125
-                )
-
-        glowPaint.color =
-            Color.WHITE
-
-        glowPaint.alpha =
-            glowAlpha
-
-        glowPaint.textSize =
-            size
-
-        glowPaint.typeface =
-            Typeface.create(
-                Typeface.DEFAULT,
-                Typeface.BOLD
-            )
-
-        glowPaint.maskFilter =
-            BlurMaskFilter(
-                14f,
-                BlurMaskFilter.Blur.NORMAL
-            )
-
-        canvas.drawText(
-            word.text,
-            x,
-            y,
-            glowPaint
-        )
-
-        glowPaint.maskFilter =
-            null
-
-        textPaint.color =
-            Color.WHITE
-
-        textPaint.alpha =
-            255
-
-        canvas.drawText(
-            word.text,
-            x,
-            y,
-            textPaint
-        )
-    }
-        private fun drawSecondaryLine(
-        canvas: Canvas,
-        text: String,
-        width: Float,
-        centerY: Float,
-        alphaFactor: Float
-    ) {
-
-        if (
-            text.isBlank()
-        ) {
-            return
-        }
-
-        val density =
-            resources.displayMetrics.density
-
-        val size =
-            16f * density
-
-        drawCenteredWrappedText(
-            canvas,
-            text,
-            width,
-            centerY,
-            size,
-            (
-                255f *
-                    alphaFactor
-            )
-                .toInt()
-                .coerceIn(
-                    0,
-                    255
-                )
-        )
-    }
-
-    private fun drawCenteredWrappedText(
+        private fun drawCenteredWrappedText(
         canvas: Canvas,
         text: String,
         width: Float,
@@ -1582,25 +1285,19 @@ private class LyricsVideoView(
         alpha: Int
     ) {
 
-        if (
-            text.isBlank()
-        ) {
-            return
-        }
+        paint.textSize =
+            size
 
-        textPaint.typeface =
+        paint.typeface =
             Typeface.create(
                 Typeface.DEFAULT,
                 Typeface.BOLD
             )
 
-        textPaint.textSize =
-            size
-
-        textPaint.color =
+        paint.color =
             Color.WHITE
 
-        textPaint.alpha =
+        paint.alpha =
             alpha
 
         val maxWidth =
@@ -1634,7 +1331,7 @@ private class LyricsVideoView(
                 }
 
             if (
-                textPaint.measureText(
+                paint.measureText(
                     candidate
                 ) <= maxWidth
             ) {
@@ -1667,214 +1364,97 @@ private class LyricsVideoView(
             )
         }
 
-        if (
-            rows.isEmpty()
-        ) {
-            return
-        }
-
         val lineHeight =
-            size * 1.16f
+            size * 1.15f
 
         val totalHeight =
-            (
-                rows.size - 1
-            ) * lineHeight
+            rows.size *
+                lineHeight
 
         var y =
             centerY -
-                totalHeight / 2f
+                totalHeight / 2f +
+                size
 
         for (
             row in rows
         ) {
 
             val rowWidth =
-                textPaint.measureText(
+                paint.measureText(
                     row
                 )
 
-            val x =
+            canvas.drawText(
+                row,
                 (
                     width -
                         rowWidth
-                ) / 2f
-
-            canvas.drawText(
-                row,
-                x,
+                ) / 2f,
                 y,
-                textPaint
+                paint
             )
 
             y +=
                 lineHeight
         }
 
-        textPaint.alpha =
+        paint.alpha =
             255
     }
 
-    private fun drawProgressBar(
+    private fun drawCenteredText(
         canvas: Canvas,
+        text: String,
         width: Float,
-        height: Float,
-        line: LyricLine
+        y: Float,
+        size: Float,
+        alpha: Int
     ) {
 
-        if (
-            line.endMs <=
-            line.timeMs
-        ) {
-            return
-        }
+        paint.textSize =
+            size *
+                resources.displayMetrics
+                    .scaledDensity
 
-        val duration =
-            line.endMs -
-                line.timeMs
-
-        val elapsed =
-            positionMs -
-                line.timeMs
-
-        val progress =
-            (
-                elapsed.toFloat() /
-                    duration.toFloat()
+        paint.typeface =
+            Typeface.create(
+                Typeface.DEFAULT,
+                Typeface.BOLD
             )
-                .coerceIn(
-                    0f,
-                    1f
-                )
 
-        val density =
-            resources.displayMetrics.density
-
-        val left =
-            24f * density
-
-        val right =
-            width -
-                24f * density
-
-        val y =
-            height -
-                38f * density
-
-        backgroundPaint.color =
+        paint.color =
             Color.WHITE
 
-        backgroundPaint.alpha =
-            40
+        paint.alpha =
+            alpha
 
-        canvas.drawRoundRect(
-            left,
+        val x =
+            (
+                width -
+                    paint.measureText(
+                        text
+                    )
+            ) / 2f
+
+        canvas.drawText(
+            text,
+            x,
             y,
-            right,
-            y +
-                2f * density,
-            4f * density,
-            4f * density,
-            backgroundPaint
+            paint
         )
 
-        backgroundPaint.alpha =
-            220
-
-        canvas.drawRoundRect(
-            left,
-            y,
-            left +
-                (
-                    right -
-                        left
-                ) *
-                progress,
-            y +
-                2f * density,
-            4f * density,
-            4f * density,
-            backgroundPaint
-        )
-
-        backgroundPaint.alpha =
+        paint.alpha =
             255
     }
 
-    private fun findCurrentLineIndex(
-        lines: List<LyricLine>
-    ): Int {
-
-        if (
-            lines.isEmpty()
-        ) {
-            return -1
-        }
-
-        var result =
-            -1
-
-        for (
-            index in lines.indices
-        ) {
-
-            if (
-                lines[index].timeMs <=
-                positionMs
-            ) {
-
-                result =
-                    index
-
-            } else {
-
-                break
-            }
-        }
-
-        return result
-    }
-
-    private fun isLineActive(
-        line: LyricLine
-    ): Boolean {
-
-        if (
-            positionMs <
-            line.timeMs
-        ) {
-            return false
-        }
-
-        if (
-            positionMs >=
-            line.endMs
-        ) {
-            return false
-        }
-
-        if (
-            line.text.isBlank()
-        ) {
-            return false
-        }
-
-        return true
-    }
-
-    private fun truncateText(
+    private fun ellipsize(
         text: String,
         maxWidth: Float
     ): String {
 
         if (
-            text.isBlank()
-        ) {
-            return ""
-        }
-
-        if (
-            textPaint.measureText(
+            paint.measureText(
                 text
             ) <= maxWidth
         ) {
@@ -1886,7 +1466,7 @@ private class LyricsVideoView(
 
         while (
             result.length > 1 &&
-            textPaint.measureText(
+            paint.measureText(
                 "$result…"
             ) > maxWidth
         ) {
@@ -1908,10 +1488,10 @@ private class LyricsVideoView(
 
             MotionEvent.ACTION_DOWN -> {
 
-                touchDownX =
+                downX =
                     event.x
 
-                touchDownY =
+                downY =
                     event.y
 
                 return true
@@ -1921,11 +1501,11 @@ private class LyricsVideoView(
 
                 val dx =
                     event.x -
-                        touchDownX
+                        downX
 
                 val dy =
                     event.y -
-                        touchDownY
+                        downY
 
                 if (
                     abs(dx) >
@@ -1934,27 +1514,22 @@ private class LyricsVideoView(
                     abs(dy)
                 ) {
 
-                    if (
-                        dx < 0f
-                    ) {
-
-                        style =
+                    style =
+                        if (
+                            dx < 0
+                        ) {
                             (
                                 style + 1
                             ) %
-                            styleCount
-
-                    } else {
-
-                        style =
-                            if (
-                                style == 0
-                            ) {
-                                styleCount - 1
-                            } else {
-                                style - 1
-                            }
-                    }
+                                styles
+                        } else {
+                            (
+                                style -
+                                    1 +
+                                    styles
+                            ) %
+                                styles
+                        }
 
                     invalidate()
 
