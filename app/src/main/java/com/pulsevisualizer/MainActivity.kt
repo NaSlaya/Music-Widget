@@ -44,7 +44,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,16 +58,18 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onCreate(savedInstanceState)
 
-        MediaRepository.start(this)
+        if (
+            NotificationAccessHelper.hasNotificationAccess(this)
+        ) {
+            startMediaSystem()
+        }
 
         setContent {
             PulseTheme {
                 PulseApp(
                     openNotificationAccess = {
-                        startActivity(
-                            Intent(
-                                "android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"
-                            )
+                        NotificationAccessHelper.requestNotificationAccess(
+                            this
                         )
                     },
                     openFullScreen = {
@@ -83,12 +84,43 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        checkNotificationAccess()
+    }
+
+    private fun checkNotificationAccess() {
+
+        if (
+            NotificationAccessHelper.hasNotificationAccess(this)
+        ) {
+            startMediaSystem()
+        } else {
+            NotificationAccessHelper.requestNotificationAccess(this)
+        }
+    }
+
+    private fun startMediaSystem() {
+
+        try {
+            MediaRepository.start(
+                applicationContext
+            )
+        } catch (
+            _: Exception
+        ) {
+            // Prevent repository startup errors from
+            // crashing the Activity.
+        }
+    }
 }
 
 @Composable
 fun PulseTheme(
     content: @Composable () -> Unit
 ) {
+
     MaterialTheme(
         colorScheme =
             androidx.compose.material3.darkColorScheme(
@@ -110,6 +142,7 @@ fun PulseApp(
     openNotificationAccess: () -> Unit,
     openFullScreen: () -> Unit
 ) {
+
     val media by
         MediaRepository.media.collectAsState()
 
@@ -151,8 +184,7 @@ fun PulseApp(
 
             Text(
                 text = "MUSIC VISUALIZER",
-                color =
-                    Color(0xFF8E7AAE),
+                color = Color(0xFF8E7AAE),
                 fontSize = 10.sp,
                 letterSpacing = 3.sp
             )
@@ -163,8 +195,7 @@ fun PulseApp(
             )
 
             if (
-                media.title ==
-                "Nothing playing"
+                media.title == "Nothing playing"
             ) {
 
                 EmptyMediaCard(
@@ -199,8 +230,7 @@ fun PulseApp(
                         media.artist.ifBlank {
                             "Unknown artist"
                         },
-                    color =
-                        Color(0xFFAAA5B5),
+                    color = Color(0xFFAAA5B5),
                     fontSize = 15.sp,
                     maxLines = 1
                 )
@@ -211,8 +241,7 @@ fun PulseApp(
                 )
 
                 ReactiveVisualizer(
-                    playing =
-                        media.playing,
+                    playing = media.playing,
                     trackKey =
                         media.title +
                             media.artist
@@ -224,8 +253,7 @@ fun PulseApp(
                 )
 
                 PlaybackControls(
-                    playing =
-                        media.playing
+                    playing = media.playing
                 )
 
                 Spacer(
@@ -234,8 +262,7 @@ fun PulseApp(
                 )
 
                 Button(
-                    onClick =
-                        openFullScreen,
+                    onClick = openFullScreen,
                     modifier =
                         Modifier.fillMaxWidth(),
                     shape =
@@ -250,11 +277,11 @@ fun PulseApp(
         }
     }
 }
-
 @Composable
 private fun EmptyMediaCard(
     openNotificationAccess: () -> Unit
 ) {
+
     Card(
         modifier =
             Modifier.fillMaxWidth(),
@@ -273,10 +300,14 @@ private fun EmptyMediaCard(
         ) {
 
             Text(
-                text = "NO MUSIC DETECTED",
-                color = Color.White,
-                fontSize = 18.sp,
-                letterSpacing = 1.5.sp
+                text =
+                    "NO MUSIC DETECTED",
+                color =
+                    Color.White,
+                fontSize =
+                    18.sp,
+                letterSpacing =
+                    1.5.sp
             )
 
             Spacer(
@@ -289,7 +320,8 @@ private fun EmptyMediaCard(
                     "Start playing music in Spotify, YouTube Music or another supported media app.",
                 color =
                     Color(0xFF9994A3),
-                fontSize = 14.sp
+                fontSize =
+                    14.sp
             )
 
             Spacer(
@@ -317,6 +349,7 @@ private fun EmptyMediaCard(
 private fun Artwork(
     bitmap: android.graphics.Bitmap?
 ) {
+
     Box(
         modifier =
             Modifier
@@ -332,7 +365,9 @@ private fun Artwork(
             Alignment.Center
     ) {
 
-        if (bitmap != null) {
+        if (
+            bitmap != null
+        ) {
 
             Image(
                 bitmap =
@@ -349,7 +384,8 @@ private fun Artwork(
                 text = "♪",
                 color =
                     Color(0xFF9C6CFF),
-                fontSize = 90.sp
+                fontSize =
+                    90.sp
             )
         }
     }
@@ -359,6 +395,7 @@ private fun Artwork(
 private fun PlaybackControls(
     playing: Boolean
 ) {
+
     Row(
         modifier =
             Modifier.fillMaxWidth(),
@@ -369,17 +406,19 @@ private fun PlaybackControls(
     ) {
 
         IconButton(
-            onClick =
-                {
-                    MediaRepository.previous()
-                },
+            onClick = {
+                MediaRepository.previous()
+            },
             modifier =
                 Modifier.size(58.dp)
         ) {
+
             Text(
                 text = "⏮",
-                color = Color.White,
-                fontSize = 28.sp
+                color =
+                    Color.White,
+                fontSize =
+                    28.sp
             )
         }
 
@@ -401,11 +440,9 @@ private fun PlaybackControls(
         ) {
 
             IconButton(
-                onClick =
-                    {
-                        MediaRepository
-                            .togglePlayPause()
-                    }
+                onClick = {
+                    MediaRepository.togglePlayPause()
+                }
             ) {
 
                 Text(
@@ -415,24 +452,28 @@ private fun PlaybackControls(
                         } else {
                             "▶"
                         },
-                    color = Color.White,
-                    fontSize = 27.sp
+                    color =
+                        Color.White,
+                    fontSize =
+                        27.sp
                 )
             }
         }
 
         IconButton(
-            onClick =
-                {
-                    MediaRepository.next()
-                },
+            onClick = {
+                MediaRepository.next()
+            },
             modifier =
                 Modifier.size(58.dp)
         ) {
+
             Text(
                 text = "⏭",
-                color = Color.White,
-                fontSize = 28.sp
+                color =
+                    Color.White,
+                fontSize =
+                    28.sp
             )
         }
     }
@@ -443,6 +484,7 @@ private fun ReactiveVisualizer(
     playing: Boolean,
     trackKey: String
 ) {
+
     var phase by
         remember(trackKey) {
             mutableFloatStateOf(0f)
@@ -498,7 +540,6 @@ private fun ReactiveVisualizer(
     ) {
 
         val bars = 56
-
         val gap = 3f
 
         val barWidth =
@@ -506,7 +547,7 @@ private fun ReactiveVisualizer(
                 size.width -
                     gap *
                     (bars + 1)
-                ) / bars
+            ) / bars
 
         val seed =
             abs(
@@ -518,8 +559,7 @@ private fun ReactiveVisualizer(
         ) {
 
             val normalized =
-                i.toFloat() /
-                    bars
+                i.toFloat() / bars
 
             val harmonic =
                 0.5f +
@@ -529,9 +569,8 @@ private fun ReactiveVisualizer(
                                 normalized *
                                 (
                                     5.0f +
-                                        seed %
-                                        7
-                                    )
+                                        seed % 7
+                                )
                         )
 
             val second =
@@ -539,15 +578,12 @@ private fun ReactiveVisualizer(
                     0.5f *
                         sin(
                             phase * 1.7f +
-                                normalized *
-                                12f
+                                normalized * 12f
                         )
 
             val shape =
-                (
-                    harmonic * 0.65f +
-                        second * 0.35f
-                    )
+                harmonic * 0.65f +
+                    second * 0.35f
 
             val heightFactor =
                 if (playing) {
@@ -579,7 +615,7 @@ private fun ReactiveVisualizer(
                 (
                     size.height -
                         barHeight
-                    ) / 2f
+                ) / 2f
 
             drawRoundRect(
                 brush =
@@ -592,7 +628,10 @@ private fun ReactiveVisualizer(
                     ),
                 topLeft =
                     androidx.compose.ui.geometry
-                        .Offset(x, y),
+                        .Offset(
+                            x,
+                            y
+                        ),
                 size =
                     androidx.compose.ui.geometry
                         .Size(
@@ -611,9 +650,12 @@ private fun ReactiveVisualizer(
         drawCircle(
             color =
                 Color(0xFF9C6CFF)
-                    .copy(alpha = 0.12f),
+                    .copy(
+                        alpha = 0.12f
+                    ),
             radius =
-                size.minDimension * 0.38f,
+                size.minDimension *
+                    0.38f,
             center =
                 androidx.compose.ui.geometry
                     .Offset(
