@@ -1,6 +1,7 @@
 package com.pulsevisualizer
 
 import android.content.Context
+import android.util.Log
 import org.json.JSONArray
 import java.io.File
 import java.net.HttpURLConnection
@@ -13,9 +14,16 @@ import kotlin.math.min
 
 object LyricsRepository {
 
-    private const val CACHE_VERSION = 4
-    private const val CONNECT_TIMEOUT = 8000
-    private const val READ_TIMEOUT = 10000
+    private const val TAG =
+        "LyricsRepository"
+
+    private const val CACHE_VERSION = 5
+
+    private const val CONNECT_TIMEOUT =
+        8000
+
+    private const val READ_TIMEOUT =
+        10000
 
     private val memoryCache =
         ConcurrentHashMap<String, LyricsDocument>()
@@ -26,19 +34,33 @@ object LyricsRepository {
         artist: String
     ): LyricsDocument {
 
-        val cleanTitle = cleanTitle(title)
-        val cleanArtist = cleanArtist(artist)
+        val cleanTitle =
+            cleanTitle(title)
+
+        val cleanArtist =
+            cleanArtist(artist)
 
         if (cleanTitle.isBlank()) {
+            Log.d(
+                TAG,
+                "Cannot search lyrics: title is blank"
+            )
+
             return emptyDocument()
         }
 
-        val key = makeKey(
-            cleanTitle,
-            cleanArtist
-        )
+        val key =
+            makeKey(
+                cleanTitle,
+                cleanArtist
+            )
 
         memoryCache[key]?.let {
+            Log.d(
+                TAG,
+                "Lyrics found in memory cache: $cleanTitle - $cleanArtist"
+            )
+
             return it
         }
 
@@ -46,18 +68,33 @@ object LyricsRepository {
             context,
             key
         )?.let {
-            memoryCache[key] = it
+
+            Log.d(
+                TAG,
+                "Lyrics found in disk cache: $cleanTitle - $cleanArtist"
+            )
+
+            memoryCache[key] =
+                it
+
             return it
         }
 
-        // First search: title + artist
-        val withArtist = search(
-            cleanTitle,
-            cleanArtist
-        )
+        val withArtist =
+            search(
+                cleanTitle,
+                cleanArtist
+            )
 
         if (withArtist.lines.isNotEmpty()) {
-            memoryCache[key] = withArtist
+
+            Log.d(
+                TAG,
+                "Lyrics found using title + artist: $cleanTitle - $cleanArtist"
+            )
+
+            memoryCache[key] =
+                withArtist
 
             save(
                 context,
@@ -68,14 +105,21 @@ object LyricsRepository {
             return withArtist
         }
 
-        // Second search: title only
-        val titleOnly = search(
-            cleanTitle,
-            null
-        )
+        val titleOnly =
+            search(
+                cleanTitle,
+                null
+            )
 
         if (titleOnly.lines.isNotEmpty()) {
-            memoryCache[key] = titleOnly
+
+            Log.d(
+                TAG,
+                "Lyrics found using title-only search: $cleanTitle"
+            )
+
+            memoryCache[key] =
+                titleOnly
 
             save(
                 context,
@@ -86,14 +130,25 @@ object LyricsRepository {
             return titleOnly
         }
 
+        Log.d(
+            TAG,
+            "No lyrics found for: $cleanTitle - $cleanArtist"
+        )
+
         return emptyDocument()
     }
 
     private fun emptyDocument(): LyricsDocument {
+
         return LyricsDocument(
-            lines = emptyList(),
-            source = "none",
-            confidence = 0f
+            lines =
+                emptyList(),
+
+            source =
+                "none",
+
+            confidence =
+                0f
         )
     }
 
@@ -101,6 +156,9 @@ object LyricsRepository {
         title: String,
         artist: String?
     ): LyricsDocument {
+
+        var connection:
+            HttpURLConnection? = null
 
         return try {
 
@@ -129,12 +187,18 @@ object LyricsRepository {
                         "?q=$encodedTitle"
                 }
 
-            val connection =
+            Log.d(
+                TAG,
+                "Requesting lyrics: $urlString"
+            )
+
+            connection =
                 URL(urlString)
                     .openConnection()
                     as HttpURLConnection
 
-            connection.requestMethod = "GET"
+            connection.requestMethod =
+                "GET"
 
             connection.connectTimeout =
                 CONNECT_TIMEOUT
@@ -152,12 +216,18 @@ object LyricsRepository {
                 "PulseVisualizer/2.0"
             )
 
+            val responseCode =
+                connection.responseCode
+
             if (
-                connection.responseCode !=
+                responseCode !=
                 HttpURLConnection.HTTP_OK
             ) {
 
-                connection.disconnect()
+                Log.e(
+                    TAG,
+                    "LRCLIB returned HTTP $responseCode for \"$title\" - \"$artist\""
+                )
 
                 return emptyDocument()
             }
@@ -170,7 +240,20 @@ object LyricsRepository {
                         it.readText()
                     }
 
-            connection.disconnect()
+            if (response.isBlank()) {
+
+                Log.e(
+                    TAG,
+                    "LRCLIB returned an empty response for \"$title\" - \"$artist\""
+                )
+
+                return emptyDocument()
+            }
+
+            Log.d(
+                TAG,
+                "LRCLIB response received for \"$title\" - \"$artist\""
+            )
 
             chooseBest(
                 JSONArray(response),
@@ -179,10 +262,20 @@ object LyricsRepository {
             )
 
         } catch (
-            _: Exception
+            exception: Exception
         ) {
 
+            Log.e(
+                TAG,
+                "Lyrics request failed for \"$title\" - \"$artist\"",
+                exception
+            )
+
             emptyDocument()
+
+        } finally {
+
+            connection?.disconnect()
         }
     }
 
@@ -221,24 +314,39 @@ object LyricsRepository {
                     "syncedLyrics"
                 )
 
-            if (
-                syncedLyrics.isBlank()
-            ) {
-                continue
-            }
-
-            val lines =
-                parseLrc(
-                    syncedLyrics
+            val plainLyrics =
+                item.optString(
+                    "plainLyrics"
                 )
 
-            if (
-                lines.isEmpty()
-            ) {
+            val lines =
+                if (
+                    syncedLyrics.isNotBlank()
+                ) {
+
+                    parseLrc(
+                        syncedLyrics
+                    )
+
+                } else if (
+                    plainLyrics.isNotBlank()
+                ) {
+
+                    parsePlainLyrics(
+                        plainLyrics
+                    )
+
+                } else {
+
+                    emptyList()
+                }
+
+            if (lines.isEmpty()) {
                 continue
             }
 
-            var score = 0f
+            var score =
+                0f
 
             score +=
                 similarity(
@@ -257,6 +365,14 @@ object LyricsRepository {
                     ) * 35f
             }
 
+            if (
+                syncedLyrics.isNotBlank()
+            ) {
+
+                score +=
+                    5f
+            }
+
             score +=
                 min(
                     5f,
@@ -267,15 +383,27 @@ object LyricsRepository {
                 score > bestScore
             ) {
 
-                bestScore = score
+                bestScore =
+                    score
 
                 best =
                     LyricsDocument(
-                        lines = lines,
-                        source = "LRCLIB",
+
+                        lines =
+                            lines,
+
+                        source =
+                            if (
+                                syncedLyrics.isNotBlank()
+                            ) {
+                                "LRCLIB synced"
+                            } else {
+                                "LRCLIB plain"
+                            },
+
                         confidence =
                             (
-                                score / 100f
+                                score / 105f
                             ).coerceIn(
                                 0f,
                                 1f
@@ -305,12 +433,12 @@ object LyricsRepository {
 
             val matches =
                 timestampRegex
-                    .findAll(sourceLine)
+                    .findAll(
+                        sourceLine
+                    )
                     .toList()
 
-            if (
-                matches.isEmpty()
-            ) {
+            if (matches.isEmpty()) {
                 continue
             }
 
@@ -349,7 +477,9 @@ object LyricsRepository {
                     match.groupValues[3]
 
                 val fractionMs =
-                    when (fraction.length) {
+                    when (
+                        fraction.length
+                    ) {
 
                         1 ->
                             (
@@ -380,7 +510,9 @@ object LyricsRepository {
                         fractionMs
 
                 val cleaned =
-                    cleanLyricText(text)
+                    cleanLyricText(
+                        text
+                    )
 
                 if (
                     cleaned.isNotBlank()
@@ -393,9 +525,7 @@ object LyricsRepository {
             }
         }
 
-        if (
-            rawEntries.isEmpty()
-        ) {
+        if (rawEntries.isEmpty()) {
             return emptyList()
         }
 
@@ -416,16 +546,21 @@ object LyricsRepository {
 
             val next =
                 sorted
-                    .getOrNull(index + 1)
+                    .getOrNull(
+                        index + 1
+                    )
                     ?.first
 
             val end =
                 if (next != null) {
+
                     max(
                         start + 250L,
                         next
                     )
+
                 } else {
+
                     start + 5000L
                 }
 
@@ -445,6 +580,7 @@ object LyricsRepository {
                     previous.timeMs - start
                 ) < 150L
             ) {
+
                 continue
             }
 
@@ -457,10 +593,17 @@ object LyricsRepository {
 
             result.add(
                 LyricLine(
-                    timeMs = start,
-                    endMs = end,
-                    text = text,
-                    words = words
+                    timeMs =
+                        start,
+
+                    endMs =
+                        end,
+
+                    text =
+                        text,
+
+                    words =
+                        words
                 )
             )
         }
@@ -471,7 +614,9 @@ object LyricsRepository {
 
             val actualEnd =
                 result
-                    .getOrNull(index + 1)
+                    .getOrNull(
+                        index + 1
+                    )
                     ?.timeMs
                     ?: line.endMs
 
@@ -482,7 +627,10 @@ object LyricsRepository {
                 )
 
             line.copy(
-                endMs = fixedEnd,
+
+                endMs =
+                    fixedEnd,
+
                 words =
                     LyricsTiming.estimateWords(
                         line.text,
@@ -491,6 +639,79 @@ object LyricsRepository {
                     )
             )
         }
+    }
+        private fun parsePlainLyrics(
+        raw: String
+    ): List<LyricLine> {
+
+        val cleanedLines =
+            raw
+                .lines()
+                .map {
+                    cleanLyricText(
+                        it
+                    )
+                }
+                .filter {
+                    it.isNotBlank() &&
+                        !isMetadata(it)
+                }
+
+        if (
+            cleanedLines.isEmpty()
+        ) {
+            return emptyList()
+        }
+
+        /*
+         * Plain lyrics do not contain timestamps.
+         * Give each line a display interval so the
+         * widget can still show them.
+         */
+        val lineDuration =
+            3500L
+
+        val result =
+            mutableListOf<LyricLine>()
+
+        for (
+            index in cleanedLines.indices
+        ) {
+
+            val text =
+                cleanedLines[index]
+
+            val start =
+                index *
+                    lineDuration
+
+            val end =
+                start +
+                    lineDuration
+
+            result.add(
+                LyricLine(
+
+                    timeMs =
+                        start,
+
+                    endMs =
+                        end,
+
+                    text =
+                        text,
+
+                    words =
+                        LyricsTiming.estimateWords(
+                            text,
+                            start,
+                            end
+                        )
+                )
+            )
+        }
+
+        return result
     }
 
     private fun similarity(
@@ -559,7 +780,8 @@ object LyricsRepository {
         return intersection.toFloat() /
             union.toFloat()
     }
-        private fun cleanTitle(
+
+    private fun cleanTitle(
         value: String
     ): String {
 
@@ -568,28 +790,40 @@ object LyricsRepository {
 
         val removable =
             listOf(
+
                 "(Official Lyric Video)",
                 "[Official Lyric Video]",
+
                 "(Official Lyrics)",
                 "[Official Lyrics]",
+
                 "(Lyric Video)",
                 "[Lyric Video]",
+
                 "(Lyrics)",
                 "[Lyrics]",
+
                 "(Official Audio)",
                 "[Official Audio]",
+
                 "(Official Video)",
                 "[Official Video]",
+
                 "(Official Music Video)",
                 "[Official Music Video]",
+
                 "(Audio)",
                 "[Audio]",
+
                 "(Visualizer)",
                 "[Visualizer]",
+
                 "(4K)",
                 "[4K]",
+
                 "(HD)",
                 "[HD]",
+
                 "(Remastered)",
                 "[Remastered]"
             )
@@ -779,12 +1013,19 @@ object LyricsRepository {
                     }
                 }
 
-            file.writeText(data)
+            file.writeText(
+                data
+            )
 
         } catch (
-            _: Exception
+            exception: Exception
         ) {
-            // Cache failure is ignored.
+
+            Log.e(
+                TAG,
+                "Failed to save lyrics cache",
+                exception
+            )
         }
     }
 
@@ -866,16 +1107,26 @@ object LyricsRepository {
 
                     val end =
                         entries
-                            .getOrNull(index + 1)
+                            .getOrNull(
+                                index + 1
+                            )
                             ?.first
                             ?: (
-                                start + 5000L
+                                start +
+                                    5000L
                             )
 
                     LyricLine(
-                        timeMs = start,
-                        endMs = end,
-                        text = entry.second,
+
+                        timeMs =
+                            start,
+
+                        endMs =
+                            end,
+
+                        text =
+                            entry.second,
+
                         words =
                             LyricsTiming
                                 .estimateWords(
@@ -887,14 +1138,26 @@ object LyricsRepository {
                 }
 
             LyricsDocument(
-                lines = result,
-                source = source,
-                confidence = confidence
+
+                lines =
+                    result,
+
+                source =
+                    source,
+
+                confidence =
+                    confidence
             )
 
         } catch (
-            _: Exception
+            exception: Exception
         ) {
+
+            Log.e(
+                TAG,
+                "Failed to read lyrics cache",
+                exception
+            )
 
             null
         }
