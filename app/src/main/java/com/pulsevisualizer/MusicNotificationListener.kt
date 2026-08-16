@@ -1,8 +1,16 @@
 package com.pulsevisualizer
 
 import android.service.notification.NotificationListenerService
-import android.service.notification.StatusBarNotification
 
+/**
+ * Compatibility listener.
+ *
+ * The actual notification listener used by the application
+ * is MediaListenerService.
+ *
+ * This class intentionally does not call MediaRepository.refresh()
+ * because refresh() is private to MediaRepository.
+ */
 class MusicNotificationListener :
     NotificationListenerService() {
 
@@ -10,66 +18,11 @@ class MusicNotificationListener :
         super.onListenerConnected()
 
         /*
-         * Notification access is now active.
+         * MediaRepository is started by the actual
+         * MediaListenerService / MainActivity.
          *
-         * Start/reconnect the media repository.
+         * Nothing needs to be done here.
          */
-        try {
-
-            MediaRepository.start(
-                applicationContext
-            )
-
-        } catch (
-            _: Exception
-        ) {
-            // Don't crash the listener.
-        }
-    }
-
-
-    override fun onNotificationPosted(
-        sbn: StatusBarNotification
-    ) {
-
-        /*
-         * MediaRepository is responsible for reading
-         * the actual playback information.
-         *
-         * We don't do lyric fetching here.
-         */
-        try {
-
-            MediaRepository.refresh(
-                applicationContext
-            )
-
-        } catch (
-            _: Exception
-        ) {
-            // Ignore notification parsing failures.
-        }
-    }
-
-
-    override fun onNotificationRemoved(
-        sbn: StatusBarNotification
-    ) {
-
-        /*
-         * Let the repository refresh its current state.
-         */
-        try {
-
-            MediaRepository.refresh(
-                applicationContext
-            )
-
-        } catch (
-            _: Exception
-        ) {
-            // Ignore errors.
-        }
     }
 
 
@@ -77,9 +30,8 @@ class MusicNotificationListener :
         super.onListenerDisconnected()
 
         /*
-         * Android may reconnect the listener later.
-         *
-         * Don't try to force MediaRepository here.
+         * Android will reconnect the registered
+         * MediaListenerService when appropriate.
          */
     }
-  }
+    }
