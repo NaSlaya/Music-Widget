@@ -5,7 +5,7 @@
     android:id="@+id/lyrics_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="12dp"
+    android:padding="10dp"
     android:background="@android:color/transparent">
 
     <TextView
@@ -14,16 +14,16 @@
         android:layout_height="match_parent"
         android:gravity="center"
 
-        android:text="Loading lyrics..."
+        android:text=""
         android:textColor="@android:color/white"
-        android:textSize="42sp"
+        android:textSize="52sp"
         android:textStyle="bold"
         android:fontFamily="sans-serif"
 
         android:includeFontPadding="false"
 
-        android:lineSpacingExtra="6dp"
-        android:lineSpacingMultiplier="1.05"
+        android:lineSpacingExtra="5dp"
+        android:lineSpacingMultiplier="1.0"
 
         android:maxLines="4"
         android:ellipsize="none"
