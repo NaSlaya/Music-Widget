@@ -53,12 +53,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             val artist =
                 media.artist
                     .trim()
-                    .takeIf { it.isNotBlank() }
-                    ?: ""
-
-            /*
-             * No song playing.
-             */
 
             if (
                 title.equals(
@@ -82,11 +76,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             val songKey =
                 "$title|$artist"
 
-            /*
-             * Use cached lyrics if this is
-             * the same song.
-             */
-
             if (
                 songKey == lastSongKey &&
                 lastLyrics.isNotBlank()
@@ -104,10 +93,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 return
             }
 
-            /*
-             * Immediately show a loading message.
-             */
-
             updateWidgets(
                 context,
                 manager,
@@ -116,11 +101,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 artist,
                 "Loading lyrics..."
             )
-
-            /*
-             * Don't perform network requests on
-             * Android's widget/main thread.
-             */
 
             executor.execute {
 
@@ -149,8 +129,75 @@ class LyricsWidgetProvider : AppWidgetProvider() {
 
 
         private fun fetchLyrics(
+            originalTitle: String,
+            originalArtist: String
+        ): String {
+
+            /*
+             * Clean obvious YouTube title additions.
+             *
+             * Example:
+             *
+             * My Song (Official Lyric Video)
+             *
+             * becomes:
+             *
+             * My Song
+             */
+
+            val cleanedTitle =
+                cleanTitle(originalTitle)
+
+            /*
+             * ------------------------------------------------
+             * FIRST SEARCH
+             * ------------------------------------------------
+             *
+             * Search using BOTH title and artist.
+             */
+
+            val artistResult =
+                searchLrclib(
+                    cleanedTitle,
+                    originalArtist
+                )
+
+            if (
+                artistResult.isNotBlank()
+            ) {
+
+                return artistResult
+            }
+
+            /*
+             * ------------------------------------------------
+             * SECOND SEARCH
+             * ------------------------------------------------
+             *
+             * If title + artist failed,
+             * search using TITLE ONLY.
+             */
+
+            val titleOnlyResult =
+                searchLrclib(
+                    cleanedTitle,
+                    null
+                )
+
+            if (
+                titleOnlyResult.isNotBlank()
+            ) {
+
+                return titleOnlyResult
+            }
+
+            return "Lyrics not found"
+        }
+
+
+        private fun searchLrclib(
             title: String,
-            artist: String
+            artist: String?
         ): String {
 
             return try {
@@ -161,24 +208,33 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                         "UTF-8"
                     )
 
-                val encodedArtist =
-                    URLEncoder.encode(
-                        artist,
-                        "UTF-8"
-                    )
+                val urlString =
+                    if (
+                        !artist.isNullOrBlank()
+                    ) {
 
-                /*
-                 * LRCLIB's search endpoint doesn't require
-                 * album or duration and returns matching
-                 * lyric records.
-                 */
+                        val encodedArtist =
+                            URLEncoder.encode(
+                                artist,
+                                "UTF-8"
+                            )
 
-                val url =
-                    URL(
                         "https://lrclib.net/api/search" +
                         "?track_name=$encodedTitle" +
                         "&artist_name=$encodedArtist"
-                    )
+
+                    } else {
+
+                        /*
+                         * Title-only search.
+                         */
+
+                        "https://lrclib.net/api/search" +
+                        "?q=$encodedTitle"
+                    }
+
+                val url =
+                    URL(urlString)
 
                 val connection =
                     url.openConnection()
@@ -209,7 +265,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
 
                     connection.disconnect()
 
-                    return "Lyrics unavailable"
+                    return ""
                 }
 
                 val response =
@@ -224,109 +280,255 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 val results =
                     JSONArray(response)
 
-                if (results.length() == 0) {
-                    return "Lyrics not found"
+                if (
+                    results.length() == 0
+                ) {
+
+                    return ""
                 }
 
-                /*
-                 * Find the best matching result.
-                 */
+                findBestLyrics(
+                    results,
+                    title,
+                    artist
+                )
 
-                var bestLyrics =
-                    ""
+            } catch (
+                _: Exception
+            ) {
 
-                var bestScore =
-                    -1
+                ""
+            }
+        }
 
-                for (i in 0 until results.length()) {
 
-                    val item =
-                        results.getJSONObject(i)
+        private fun findBestLyrics(
+            results: JSONArray,
+            requestedTitle: String,
+            requestedArtist: String?
+        ): String {
 
-                    val resultTitle =
-                        item.optString(
-                            "trackName"
-                        )
+            var bestLyrics =
+                ""
 
-                    val resultArtist =
-                        item.optString(
-                            "artistName"
-                        )
+            var bestScore =
+                -1
 
-                    val syncedLyrics =
-                        item.optString(
-                            "syncedLyrics"
-                        )
+            for (
+                index in 0 until results.length()
+            ) {
 
-                    val plainLyrics =
-                        item.optString(
-                            "plainLyrics"
-                        )
+                val item =
+                    results.getJSONObject(index)
 
-                    val lyrics =
-                        if (
-                            syncedLyrics.isNotBlank()
-                        ) {
-                            cleanSyncedLyrics(
-                                syncedLyrics
-                            )
-                        } else {
-                            plainLyrics
-                        }
+                val resultTitle =
+                    item.optString(
+                        "trackName"
+                    )
 
-                    if (lyrics.isBlank()) {
-                        continue
-                    }
+                val resultArtist =
+                    item.optString(
+                        "artistName"
+                    )
 
-                    var score =
-                        0
+                val syncedLyrics =
+                    item.optString(
+                        "syncedLyrics"
+                    )
 
-                    if (
-                        resultTitle.equals(
-                            title,
-                            ignoreCase = true
-                        )
-                    ) {
-                        score += 3
-                    }
+                val plainLyrics =
+                    item.optString(
+                        "plainLyrics"
+                    )
 
-                    if (
-                        resultArtist.equals(
-                            artist,
-                            ignoreCase = true
-                        )
-                    ) {
-                        score += 3
-                    }
-
+                val lyrics =
                     if (
                         syncedLyrics.isNotBlank()
                     ) {
-                        score += 2
+
+                        cleanSyncedLyrics(
+                            syncedLyrics
+                        )
+
+                    } else {
+
+                        plainLyrics.trim()
                     }
 
-                    if (score > bestScore) {
+                if (
+                    lyrics.isBlank()
+                ) {
 
-                        bestScore =
-                            score
+                    continue
+                }
 
-                        bestLyrics =
-                            lyrics
+                var score =
+                    0
+
+                /*
+                 * Exact title match.
+                 */
+
+                if (
+                    resultTitle.equals(
+                        requestedTitle,
+                        ignoreCase = true
+                    )
+                ) {
+
+                    score += 10
+
+                } else if (
+                    normalise(
+                        resultTitle
+                    ).contains(
+                        normalise(
+                            requestedTitle
+                        )
+                    )
+                ) {
+
+                    score += 5
+                }
+
+                /*
+                 * Artist match is only relevant
+                 * during the first search.
+                 */
+
+                if (
+                    !requestedArtist.isNullOrBlank()
+                ) {
+
+                    if (
+                        resultArtist.equals(
+                            requestedArtist,
+                            ignoreCase = true
+                        )
+                    ) {
+
+                        score += 10
+
+                    } else if (
+                        normalise(
+                            resultArtist
+                        ).contains(
+                            normalise(
+                                requestedArtist
+                            )
+                        )
+                    ) {
+
+                        score += 5
                     }
                 }
 
-                if (bestLyrics.isBlank()) {
-                    "Lyrics not found"
-                } else {
-                    bestLyrics
+                /*
+                 * Prefer synced lyrics.
+                 */
+
+                if (
+                    syncedLyrics.isNotBlank()
+                ) {
+
+                    score += 3
                 }
 
-            } catch (
-                exception: Exception
+                if (
+                    score > bestScore
+                ) {
+
+                    bestScore =
+                        score
+
+                    bestLyrics =
+                        lyrics
+                }
+            }
+
+            return bestLyrics
+        }
+
+
+        private fun cleanTitle(
+            title: String
+        ): String {
+
+            var result =
+                title.trim()
+
+            /*
+             * Remove common YouTube additions.
+             */
+
+            val removablePatterns =
+                listOf(
+
+                    "(Official Lyric Video)",
+                    "[Official Lyric Video]",
+                    "(Official Lyrics)",
+                    "[Official Lyrics]",
+
+                    "(Lyric Video)",
+                    "[Lyric Video]",
+                    "(Lyrics)",
+                    "[Lyrics]",
+
+                    "(Official Audio)",
+                    "[Official Audio]",
+
+                    "(Official Video)",
+                    "[Official Video]",
+
+                    "(Official Music Video)",
+                    "[Official Music Video]",
+
+                    "(Audio)",
+                    "[Audio]"
+                )
+
+            for (
+                pattern in removablePatterns
             ) {
 
-                "Unable to load lyrics"
+                result =
+                    result.replace(
+                        pattern,
+                        "",
+                        ignoreCase = true
+                    )
             }
+
+            return result
+                .replace(
+                    Regex(
+                        "\\s{2,}"
+                    ),
+                    " "
+                )
+                .trim()
+        }
+
+
+        private fun normalise(
+            value: String
+        ): String {
+
+            return value
+                .lowercase()
+                .replace(
+                    Regex(
+                        "[^a-z0-9 ]"
+                    ),
+                    ""
+                )
+                .replace(
+                    Regex(
+                        "\\s+"
+                    ),
+                    " "
+                )
+                .trim()
         }
 
 
@@ -361,7 +563,9 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             lyrics: String
         ) {
 
-            for (widgetId in widgetIds) {
+            for (
+                widgetId in widgetIds
+            ) {
 
                 try {
 
@@ -416,8 +620,14 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                         views
                     )
 
-                } catch (_: Exception) {
-                    // Never let a widget failure crash media detection.
+                } catch (
+                    _: Exception
+                ) {
+
+                    /*
+                     * Never allow widget errors to
+                     * interfere with media detection.
+                     */
                 }
             }
         }
@@ -446,13 +656,11 @@ class LyricsWidgetProvider : AppWidgetProvider() {
         context: Context,
         appWidgetIds: IntArray
     ) {
-        // Nothing required.
     }
 
 
     override fun onDisabled(
         context: Context
     ) {
-        // Nothing required.
     }
 }
