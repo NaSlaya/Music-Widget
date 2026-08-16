@@ -3,58 +3,60 @@
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required for LRCLIB lyrics requests -->
-    <uses-permission android:name="android.permission.INTERNET" />
-
-    <!--
-        Notification Listener access is granted through
-        Android Settings. It is NOT requested with a
-        normal runtime permission dialog.
-    -->
+    <!-- Required for retrieving lyrics from LRCLIB -->
+    <uses-permission
+        android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.PulseVisualizer">
+        android:theme="@style/Theme.PulseVisualizer"
+        android:label="Pulse Visualizer">
 
+        <!-- Main application -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
 
             <intent-filter>
+
                 <action
                     android:name="android.intent.action.MAIN" />
 
                 <category
                     android:name="android.intent.category.LAUNCHER" />
+
             </intent-filter>
 
         </activity>
 
+
+        <!-- Notification Listener -->
         <service
             android:name=".MusicNotificationListener"
-            android:label="@string/app_name"
             android:exported="false"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
 
             <intent-filter>
+
                 <action
                     android:name="android.service.notification.NotificationListenerService" />
+
             </intent-filter>
 
         </service>
 
-        <!-- Music widget -->
+
+        <!-- Music Widget -->
         <receiver
             android:name=".MusicWidgetProvider"
             android:exported="true">
 
             <intent-filter>
+
                 <action
                     android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+
             </intent-filter>
 
             <meta-data
@@ -63,14 +65,17 @@
 
         </receiver>
 
-        <!-- Lyrics widget -->
+
+        <!-- Lyrics Widget -->
         <receiver
             android:name=".LyricsWidgetProvider"
             android:exported="true">
 
             <intent-filter>
+
                 <action
                     android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+
             </intent-filter>
 
             <meta-data
