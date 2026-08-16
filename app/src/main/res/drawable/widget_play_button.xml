@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
+<selector
+    xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item android:state_pressed="true">
 
@@ -8,14 +9,15 @@
 
             <gradient
                 android:angle="135"
-                android:startColor="#565DCC"
-                android:endColor="#737BFF" />
+                android:startColor="#8B91FF"
+                android:centerColor="#656DFF"
+                android:endColor="#4B51C4" />
 
-            <corners android:radius="25dp" />
+            <corners android:radius="24dp" />
 
             <stroke
                 android:width="1dp"
-                android:color="#A5AAFF" />
+                android:color="#C3C7FF" />
 
         </shape>
 
@@ -27,14 +29,15 @@
 
             <gradient
                 android:angle="135"
-                android:startColor="#737BFF"
-                android:endColor="#4E55C7" />
+                android:startColor="#777FFF"
+                android:centerColor="#6269ED"
+                android:endColor="#454BB7" />
 
-            <corners android:radius="25dp" />
+            <corners android:radius="24dp" />
 
             <stroke
                 android:width="1dp"
-                android:color="#9BA0FF" />
+                android:color="#AEB3FF" />
 
         </shape>
 
