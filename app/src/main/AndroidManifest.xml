@@ -3,79 +3,58 @@
 <manifest
     xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission
-        android:name="android.permission.RECORD_AUDIO" />
+    <!-- Required for LRCLIB lyrics requests -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+        Notification Listener access is granted through
+        Android Settings. It is NOT requested with a
+        normal runtime permission dialog.
+    -->
 
     <application
         android:allowBackup="true"
-        android:label="Pulse Visualizer"
-        android:theme="@style/Theme.PulseVisualizer"
-        android:supportsRtl="true">
-
-
-        <!-- Main application -->
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.PulseVisualizer">
 
         <activity
             android:name=".MainActivity"
             android:exported="true">
 
             <intent-filter>
-
                 <action
                     android:name="android.intent.action.MAIN" />
 
                 <category
                     android:name="android.intent.category.LAUNCHER" />
-
             </intent-filter>
 
         </activity>
 
-
-        <!-- Full-screen visualizer -->
-
-        <activity
-            android:name=".VisualizerActivity"
-            android:exported="false" />
-
-
-        <!--
-            Media / Notification Listener
-
-            IMPORTANT:
-            This is the existing listener used by the
-            project. Do NOT replace it with a second
-            MusicNotificationListener service.
-        -->
-
         <service
-            android:name=".MediaListenerService"
-            android:label="Pulse Visualizer Media Listener"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
+            android:name=".MusicNotificationListener"
+            android:label="@string/app_name"
+            android:exported="false"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
 
             <intent-filter>
-
                 <action
                     android:name="android.service.notification.NotificationListenerService" />
-
             </intent-filter>
 
         </service>
 
-
         <!-- Music widget -->
-
         <receiver
             android:name=".MusicWidgetProvider"
-            android:label="Pulse Music"
             android:exported="true">
 
             <intent-filter>
-
                 <action
                     android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-
             </intent-filter>
 
             <meta-data
@@ -84,19 +63,14 @@
 
         </receiver>
 
-
         <!-- Lyrics widget -->
-
         <receiver
             android:name=".LyricsWidgetProvider"
-            android:label="Pulse Lyrics"
             android:exported="true">
 
             <intent-filter>
-
                 <action
                     android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-
             </intent-filter>
 
             <meta-data
