@@ -2,6 +2,7 @@ package com.pulsevisualizer
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 
 object LyricsTiming {
 
@@ -25,18 +26,14 @@ object LyricsTiming {
                 )
                 .trim()
 
-        if (
-            clean.isBlank()
-        ) {
+        if (clean.isBlank()) {
             return emptyList()
         }
 
         val tokens =
             clean.split(" ")
 
-        if (
-            tokens.isEmpty()
-        ) {
+        if (tokens.isEmpty()) {
             return emptyList()
         }
 
@@ -46,23 +43,14 @@ object LyricsTiming {
                 endMs - startMs
             )
 
-        /*
-         * Give longer words more time.
-         *
-         * Punctuation receives additional
-         * weighting because singers naturally
-         * pause around it.
-         */
-
         val weights =
             tokens.map { word ->
 
                 val stripped =
-                    word
-                        .replace(
-                            punctuation,
-                            ""
-                        )
+                    word.replace(
+                        punctuation,
+                        ""
+                    )
 
                 var weight =
                     max(
@@ -73,29 +61,17 @@ object LyricsTiming {
                     )
 
                 if (
-                    word.endsWith(
-                        ","
-                    ) ||
-                    word.endsWith(
-                        ";"
-                    )
+                    word.endsWith(",") ||
+                    word.endsWith(";")
                 ) {
                     weight *= 1.20
                 }
 
                 if (
-                    word.endsWith(
-                        "."
-                    ) ||
-                    word.endsWith(
-                        "!"
-                    ) ||
-                    word.endsWith(
-                        "?"
-                    ) ||
-                    word.endsWith(
-                        "…"
-                    )
+                    word.endsWith(".") ||
+                    word.endsWith("!") ||
+                    word.endsWith("?") ||
+                    word.endsWith("…")
                 ) {
                     weight *= 1.40
                 }
@@ -106,36 +82,32 @@ object LyricsTiming {
         val totalWeight =
             weights.sum()
 
-        if (
-            totalWeight <= 0.0
-        ) {
+        if (totalWeight <= 0.0) {
+
             return tokens.mapIndexed {
                 index,
                 word ->
 
-                val s =
+                val start =
                     startMs +
-                    (
-                        duration *
-                        index
-                    ) /
-                    tokens.size
+                        (
+                            duration *
+                                index
+                        ) /
+                        tokens.size
 
-                val e =
+                val end =
                     startMs +
-                    (
-                        duration *
-                        (index + 1)
-                    ) /
-                    tokens.size
+                        (
+                            duration *
+                                (index + 1)
+                        ) /
+                        tokens.size
 
                 LyricWord(
-                    text =
-                        word,
-                    startMs =
-                        s,
-                    endMs =
-                        e
+                    text = word,
+                    startMs = start,
+                    endMs = end
                 )
             }
         }
@@ -147,44 +119,35 @@ object LyricsTiming {
             startMs.toDouble()
 
         for (
-            index in
-            tokens.indices
+            index in tokens.indices
         ) {
 
             val portion =
                 weights[index] /
-                totalWeight
+                    totalWeight
 
             val wordDuration =
-                duration *
-                portion
+                duration * portion
 
             val wordStart =
                 cursor.toLong()
 
             val wordEnd =
                 if (
-                    index ==
-                    tokens.lastIndex
+                    index == tokens.lastIndex
                 ) {
-
                     endMs
-
                 } else {
-
                     (
                         cursor +
-                        wordDuration
-                    )
-                        .toLong()
+                            wordDuration
+                    ).toLong()
                 }
 
             words.add(
                 LyricWord(
-                    text =
-                        tokens[index],
-                    startMs =
-                        wordStart,
+                    text = tokens[index],
+                    startMs = wordStart,
                     endMs =
                         max(
                             wordStart + 50L,
@@ -193,40 +156,32 @@ object LyricsTiming {
                 )
             )
 
-            cursor +=
-                wordDuration
+            cursor += wordDuration
         }
 
         return words
     }
-
 
     fun findCurrentWord(
         words: List<LyricWord>,
         positionMs: Long
     ): Int {
 
-        if (
-            words.isEmpty()
-        ) {
+        if (words.isEmpty()) {
             return -1
         }
 
         for (
-            index in
-            words.indices
+            index in words.indices
         ) {
 
             val word =
                 words[index]
 
             if (
-                positionMs >=
-                word.startMs &&
-                positionMs <
-                word.endMs
+                positionMs >= word.startMs &&
+                positionMs < word.endMs
             ) {
-
                 return index
             }
         }
@@ -240,7 +195,6 @@ object LyricsTiming {
 
         return words.lastIndex
     }
-
 
     fun wordProgress(
         word: LyricWord,
@@ -256,20 +210,9 @@ object LyricsTiming {
 
         return (
             positionMs -
-            word.startMs
+                word.startMs
         )
             .toFloat() /
-            duration
-            .toFloat()
-    }
-
-
-    private fun Double.pow(
-        power: Double
-    ): Double {
-
-        return kotlin.math.pow(
-            power
-        )
+            duration.toFloat()
     }
 }
