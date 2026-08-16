@@ -1,89 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<FrameLayout
+<appwidget-provider
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#151515"
-    android:padding="10dp">
-
-    <ImageView
-        android:id="@+id/widget_artwork"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:layout_gravity="start|center_vertical"
-        android:contentDescription="Album artwork"
-        android:scaleType="centerCrop"
-        android:src="@android:drawable/ic_media_play" />
-
-    <TextView
-        android:id="@+id/widget_status"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:text="NOW PLAYING"
-        android:textColor="#80FFFFFF"
-        android:textSize="9sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="84dp"
-        android:layout_marginTop="20dp"
-        android:layout_marginEnd="8dp"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:text="Nothing playing"
-        android:textColor="#FFFFFFFF"
-        android:textSize="17sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_artist"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="84dp"
-        android:layout_marginTop="52dp"
-        android:layout_marginEnd="8dp"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:text="Unknown artist"
-        android:textColor="#99FFFFFF"
-        android:textSize="12sp" />
-
-    <TextView
-        android:id="@+id/widget_previous"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_gravity="bottom|start"
-        android:gravity="center"
-        android:text="‹"
-        android:textColor="#FFFFFFFF"
-        android:textSize="30sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_play"
-        android:layout_width="52dp"
-        android:layout_height="44dp"
-        android:layout_gravity="bottom|center_horizontal"
-        android:gravity="center"
-        android:text="▶"
-        android:textColor="#FFFFFFFF"
-        android:textSize="20sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/widget_next"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_gravity="bottom|end"
-        android:gravity="center"
-        android:text="›"
-        android:textColor="#FFFFFFFF"
-        android:textSize="30sp"
-        android:textStyle="bold" />
-
-</FrameLayout>
+    android:minWidth="180dp"
+    android:minHeight="80dp"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/music_widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />
