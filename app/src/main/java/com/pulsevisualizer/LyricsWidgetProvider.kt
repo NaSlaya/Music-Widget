@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
-
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
@@ -17,75 +16,53 @@ class LyricsWidgetProvider : AppWidgetProvider() {
 
     companion object {
 
-        /*
-         * LyricsRepository already has its own memory and
-         * disk cache, so the widget provider does NOT keep
-         * another copy of the lyrics.
-         */
         private val executor =
             Executors.newCachedThreadPool()
 
         private val handler =
             Handler(Looper.getMainLooper())
 
-        private var appContext: Context? =
-            null
+        private var appContext:
+            Context? = null
 
-        /*
-         * The song currently represented by the widget.
-         */
         private var currentSongKey =
             ""
 
-        /*
-         * Lyrics currently being displayed.
-         */
         private var document =
             LyricsDocument(
                 emptyList()
             )
 
         /*
-         * Prevent duplicate requests for the exact
-         * same song while still allowing a NEW song
-         * to start fetching immediately.
+         * Instead of one global loading flag, keep track
+         * of which specific songs are currently loading.
+         *
+         * This means:
+         *
+         * Song A loading
+         *      ↓
+         * Song B starts
+         *      ↓
+         * Song B can load immediately
          */
         private val activeRequests =
             ConcurrentHashMap.newKeySet<String>()
 
         /*
-         * Index of the lyric currently displayed.
-         *
-         * -1 = before first lyric
-         * -2 = blank / instrumental / no lyric
-         * Int.MIN_VALUE = nothing displayed yet
-         * >= 0 = lyric index
-         */
-        private var lastDisplayedIndex =
-            Int.MIN_VALUE
-
-        /*
-         * Check playback position every 100 ms.
-         *
-         * The widget itself is NOT redrawn every 100 ms.
-         * It is only redrawn when the lyric changes.
-         */
-        private const val UPDATE_INTERVAL =
-            100L
-
-        /*
-         * If there is a gap this large before the next
-         * lyric, treat the section as instrumental/silent.
-         */
-        private const val SILENCE_GAP_MS =
-            2500L
-
-        /*
-         * Prevent old asynchronous requests from updating
-         * a newer song.
+         * Protects asynchronous requests from an old
+         * song updating a newer song.
          */
         private var requestGeneration =
             0L
+
+        private var lastDisplayedIndex =
+            Int.MIN_VALUE
+
+        private const val UPDATE_INTERVAL =
+            100L
+
+        private const val SILENCE_GAP_MS =
+            2500L
 
         private val positionUpdater =
             object : Runnable {
@@ -100,8 +77,8 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                         _: Exception
                     ) {
                         /*
-                         * Never allow a widget exception to
-                         * kill the position updater.
+                         * Never allow a widget update error
+                         * to kill the updater.
                          */
                     }
 
@@ -136,9 +113,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     component
                 )
 
-            /*
-             * No widgets exist anymore.
-             */
             if (
                 ids.isEmpty()
             ) {
@@ -149,12 +123,19 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             }
 
             /*
-             * MediaRepository owns the actual media
-             * playback state.
+             * IMPORTANT:
+             *
+             * Do NOT call MediaRepository.start()
+             * from here.
+             *
+             * MediaRepository.updateWidget() calls this
+             * method, and MediaRepository.start() calls
+             * refresh(), which can call updateWidget()
+             * again. That creates a recursive loop.
+             *
+             * The media repository is already started by
+             * the application/media service.
              */
-            MediaRepository.start(
-                context
-            )
 
             val media =
                 MediaRepository
@@ -170,7 +151,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             /*
              * Nothing is playing.
              *
-             * Completely blank the widget.
+             * Completely blank the lyric widget.
              */
             if (
                 title.isBlank() ||
@@ -219,7 +200,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 )
 
             /*
-             * The song changed.
+             * Detect a new song.
              */
             if (
                 songKey !=
@@ -243,22 +224,14 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     requestGeneration
 
                 /*
-                 * Blank immediately.
-                 *
-                 * This prevents lyrics from the previous
-                 * song remaining on screen.
+                 * Immediately clear the previous song's
+                 * lyrics.
                  */
                 updateWidgetText(
                     context,
                     ""
                 )
 
-                /*
-                 * Start the request immediately.
-                 *
-                 * This runs independently from the playback
-                 * position updater.
-                 */
                 fetchLyrics(
                     context = context,
                     title = cleanedTitle,
@@ -269,10 +242,11 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             }
 
             /*
-             * Always keep the position updater alive while
+             * Keep checking playback position while
              * something is playing.
              *
-             * This is important: lyrics may still be loading.
+             * This updater does NOT fetch lyrics and does
+             * NOT redraw the widget unless necessary.
              */
             startPositionUpdates(
                 context
@@ -303,8 +277,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
         ) {
 
             /*
-             * Do not start another request for this exact
-             * song if one is already running.
+             * Already fetching this exact song.
              */
             if (
                 !activeRequests.add(
@@ -331,14 +304,14 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     ) {
 
                         LyricsDocument(
-                            lines = emptyList(),
+                            emptyList(),
                             source = "none",
                             confidence = 0f
                         )
                     }
 
                 /*
-                 * This song's request is finished.
+                 * This request is finished.
                  */
                 activeRequests.remove(
                     songKey
@@ -347,8 +320,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 handler.post {
 
                     /*
-                     * Ignore this result if another song
-                     * has started since the request began.
+                     * Ignore a result from an old song.
                      */
                     if (
                         generation !=
@@ -366,9 +338,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                         return@post
                     }
 
-                    /*
-                     * Verify the media state one more time.
-                     */
                     val media =
                         MediaRepository
                             .media
@@ -397,7 +366,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     }
 
                     /*
-                     * Lyrics have arrived.
+                     * Lyrics successfully arrived.
                      */
                     document =
                         result
@@ -406,13 +375,8 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                         Int.MIN_VALUE
 
                     /*
-                     * IMPORTANT:
-                     *
-                     * Calculate the lyric for the CURRENT
-                     * playback position immediately.
-                     *
-                     * If the network took 2 seconds, we do
-                     * NOT start from the first lyric.
+                     * Immediately calculate which lyric
+                     * should be showing RIGHT NOW.
                      */
                     updateCurrentLyric(
                         force = true
@@ -430,7 +394,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 context.applicationContext
 
             /*
-             * Prevent duplicate updater loops.
+             * Only one updater can exist.
              */
             handler.removeCallbacks(
                 positionUpdater
@@ -462,9 +426,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 document.lines
 
             /*
-             * Lyrics are not available yet.
-             *
-             * Do nothing except keep the widget blank.
+             * Lyrics are still loading or unavailable.
              */
             if (
                 lines.isEmpty()
@@ -496,11 +458,9 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     )
 
             /*
-             * Before the first lyric.
+             * Instrumental intro:
              *
-             * This is what keeps a 10-second instrumental
-             * intro blank instead of displaying the first
-             * lyric early.
+             * Before the first timestamp, show nothing.
              */
             if (
                 position <
@@ -525,13 +485,13 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 return
             }
 
-            /*
-             * Find the latest lyric whose timestamp is
-             * less than or equal to the current position.
-             */
             var currentIndex =
                 -1
 
+            /*
+             * Find the latest lyric timestamp that has
+             * already been reached.
+             */
             for (
                 index in lines.indices
             ) {
@@ -561,7 +521,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 lines[currentIndex]
 
             /*
-             * Blank lyric entries are never displayed.
+             * Empty lyric line.
              */
             if (
                 current.text.isBlank()
@@ -584,7 +544,8 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 return
             }
                         /*
-             * Respect the calculated end time of the lyric.
+             * If the lyric has an explicit end time,
+             * don't leave it stuck on screen.
              */
             if (
                 position >=
@@ -595,9 +556,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                     currentIndex + 1
 
                 /*
-                 * There is no next lyric.
-                 *
-                 * The current lyric has finished.
+                 * Last lyric has finished.
                  */
                 if (
                     nextIndex >=
@@ -624,9 +583,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 val next =
                     lines[nextIndex]
 
-                /*
-                 * Time remaining until the next lyric.
-                 */
                 val gap =
                     next.timeMs -
                         position
@@ -657,10 +613,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 }
 
                 /*
-                 * We are between two lyric timestamps.
-                 *
-                 * Keep the widget blank rather than showing
-                 * an old lyric.
+                 * We are between lyric lines.
                  */
                 if (
                     position <
@@ -686,11 +639,9 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             }
 
             /*
-             * The current lyric hasn't changed.
+             * The lyric has not changed.
              *
-             * DO NOT redraw the RemoteViews.
-             *
-             * This prevents flashing and unnecessary work.
+             * Do NOT redraw the widget every 100 ms.
              */
             if (
                 !force &&
@@ -748,11 +699,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 )
 
             /*
-             * The lyrics widget contains ONLY the lyric.
-             *
-             * No title.
-             * No artist.
-             * No status.
+             * The lyric widget displays ONLY lyrics.
              */
             views.setTextViewText(
                 R.id.lyrics_text,
@@ -760,7 +707,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             )
 
             /*
-             * A blank state is genuinely invisible.
+             * Completely invisible when blank.
              */
             views.setFloat(
                 R.id.lyrics_text,
@@ -775,7 +722,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             )
 
             /*
-             * Tapping the lyric widget opens the app.
+             * Tap widget to open the application.
              */
             val intent =
                 Intent(
@@ -803,7 +750,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             )
 
             /*
-             * Update every instance of the lyrics widget.
+             * Update every lyrics widget instance.
              */
             for (
                 id in ids
@@ -824,10 +771,6 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             var result =
                 value.trim()
 
-            /*
-             * Remove common YouTube/Spotify metadata
-             * from the title before searching.
-             */
             val removable =
                 listOf(
                     "(Official Lyric Video)",
@@ -869,12 +812,10 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             }
 
             /*
-             * Remove suffixes such as:
+             * IMPORTANT:
              *
-             * Song - Official Video
-             * Song - Official Audio
-             * Song - Lyrics
-             * Song | Lyric Video
+             * Case-insensitivity belongs on the Regex,
+             * not as an argument to String.replace().
              */
             result =
                 result.replace(
@@ -886,7 +827,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
                 )
 
             /*
-             * Collapse multiple spaces.
+             * Collapse repeated whitespace.
              */
             result =
                 result.replace(
@@ -917,6 +858,14 @@ class LyricsWidgetProvider : AppWidgetProvider() {
         context: Context
     ) {
 
+        /*
+         * Do not start MediaRepository here.
+         *
+         * The app/media service owns MediaRepository.
+         *
+         * Starting it from here can create a recursive
+         * MediaRepository -> LyricsWidgetProvider loop.
+         */
         updateAll(
             context
         )
@@ -929,6 +878,7 @@ class LyricsWidgetProvider : AppWidgetProvider() {
     ) {
 
         /*
+         * Android normally supplies the deleted widget IDs.
          * Check whether any lyrics widgets remain.
          */
         val manager =
@@ -954,14 +904,16 @@ class LyricsWidgetProvider : AppWidgetProvider() {
             stopPositionUpdates()
         }
     }
-        override fun onDisabled(
+
+
+    override fun onDisabled(
         context: Context
     ) {
 
         stopPositionUpdates()
 
         /*
-         * Invalidate every outstanding request.
+         * Invalidate all outstanding asynchronous requests.
          */
         requestGeneration++
 
