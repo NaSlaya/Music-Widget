@@ -7,12 +7,14 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -44,6 +46,7 @@ object MediaRepository {
     private var lastArtwork: Bitmap? = null
 
     private var started = false
+
 
     fun start(context: Context) {
 
@@ -87,11 +90,9 @@ object MediaRepository {
         try {
 
             /*
-             * This is the important part.
-             *
-             * Android only allows getActiveSessions() when the
-             * calling application has a notification listener
-             * component that is actually enabled.
+             * Android only allows getActiveSessions()
+             * when the notification listener component
+             * is enabled.
              */
 
             sessionManager.addOnActiveSessionsChangedListener(
@@ -125,6 +126,7 @@ object MediaRepository {
                 }
             }
     }
+
 
     fun stop() {
 
@@ -167,6 +169,7 @@ object MediaRepository {
         _media.value = MediaInfo()
     }
 
+
     fun selectPackage(packageName: String?) {
 
         selectedPackage = packageName
@@ -176,12 +179,14 @@ object MediaRepository {
         )
     }
 
+
     fun availablePackages(): List<String> {
 
         return controllers
             .map { it.packageName }
             .distinct()
     }
+
 
     private fun currentController(): MediaController? {
 
@@ -219,6 +224,7 @@ object MediaRepository {
         return controllers.firstOrNull()
     }
 
+
     fun play() {
 
         currentController()
@@ -228,6 +234,7 @@ object MediaRepository {
         refreshDelayed()
     }
 
+
     fun pause() {
 
         currentController()
@@ -236,6 +243,7 @@ object MediaRepository {
 
         refreshDelayed()
     }
+
 
     fun togglePlayPause() {
 
@@ -261,6 +269,7 @@ object MediaRepository {
         refreshDelayed()
     }
 
+
     fun next() {
 
         currentController()
@@ -270,6 +279,7 @@ object MediaRepository {
         refreshDelayed()
     }
 
+
     fun previous() {
 
         currentController()
@@ -278,6 +288,7 @@ object MediaRepository {
 
         refreshDelayed()
     }
+
 
     private fun refreshDelayed() {
 
@@ -298,6 +309,7 @@ object MediaRepository {
             refresh()
         }
     }
+
 
     private fun refresh() {
 
@@ -322,8 +334,8 @@ object MediaRepository {
         } catch (_: SecurityException) {
 
             /*
-             * Android can temporarily revoke access while
-             * the notification listener is reconnecting.
+             * Android can temporarily revoke access
+             * while the notification listener reconnects.
              *
              * Keep the existing media state.
              */
@@ -331,6 +343,7 @@ object MediaRepository {
         } catch (_: Exception) {
         }
     }
+
 
     private fun update(
         list: List<MediaController>
@@ -343,8 +356,8 @@ object MediaRepository {
             /*
              * Don't immediately erase a valid song.
              *
-             * Android can briefly return an empty list while
-             * Spotify/YouTube changes sessions.
+             * Android can briefly return an empty list
+             * while Spotify/YouTube changes sessions.
              */
 
             return
@@ -355,8 +368,10 @@ object MediaRepository {
                 list
             ) ?: return
 
+
         val metadata =
             controller.metadata
+
 
         val title =
             metadata?.getString(
@@ -372,6 +387,7 @@ object MediaRepository {
                         it.isNotBlank()
                     }
                 ?: "Unknown title"
+
 
         val artist =
             metadata?.getString(
@@ -394,6 +410,7 @@ object MediaRepository {
                     }
                 ?: ""
 
+
         val artwork =
             metadata?.getBitmap(
                 MediaMetadata.METADATA_KEY_ART
@@ -402,15 +419,19 @@ object MediaRepository {
                     MediaMetadata.METADATA_KEY_ALBUM_ART
                 )
 
+
         val playbackState =
             controller.playbackState?.state
+
 
         val playing =
             playbackState ==
                 PlaybackState.STATE_PLAYING
 
+
         val packageName =
             controller.packageName
+
 
         val changed =
             packageName != lastPackageName ||
@@ -421,9 +442,11 @@ object MediaRepository {
                 artwork
             )
 
+
         if (!changed) {
             return
         }
+
 
         lastPackageName =
             packageName
@@ -440,6 +463,7 @@ object MediaRepository {
         lastArtwork =
             artwork
 
+
         _media.value =
             MediaInfo(
                 packageName = packageName,
@@ -450,8 +474,14 @@ object MediaRepository {
                 playing = playing
             )
 
+
+        /*
+         * Update BOTH widgets whenever the media changes.
+         */
+
         updateWidget()
     }
+
 
     private fun chooseController(
         list: List<MediaController>
@@ -471,6 +501,7 @@ object MediaRepository {
             }
         }
 
+
         /*
          * 2. Currently playing application.
          */
@@ -484,6 +515,7 @@ object MediaRepository {
 
             return it
         }
+
 
         /*
          * 3. A session that has actual metadata.
@@ -503,12 +535,14 @@ object MediaRepository {
             return it
         }
 
+
         /*
          * 4. Last resort.
          */
 
         return list.firstOrNull()
     }
+
 
     private fun artworkChanged(
         artwork: Bitmap?
@@ -518,43 +552,55 @@ object MediaRepository {
             artwork == null &&
             lastArtwork == null
         ) {
+
             return false
         }
+
 
         if (
             artwork == null ||
             lastArtwork == null
         ) {
+
             return true
         }
+
 
         if (
             artwork.width !=
             lastArtwork!!.width
         ) {
+
             return true
         }
+
 
         if (
             artwork.height !=
             lastArtwork!!.height
         ) {
+
             return true
         }
 
+
         /*
-         * Bitmap references can change even when the actual
-         * artwork is identical, so don't constantly refresh
-         * the widget just because Android created another
-         * Bitmap object.
+         * Bitmap references can change even when
+         * the actual artwork is identical, so don't
+         * constantly refresh the widget.
          */
 
         return false
     }
 
+
     private fun updateWidget() {
 
         appContext?.let { context ->
+
+            /*
+             * Update the normal music widget.
+             */
 
             try {
 
@@ -565,8 +611,27 @@ object MediaRepository {
             } catch (_: Exception) {
 
                 /*
-                 * Widget errors must never break media
-                 * detection.
+                 * Widget errors must never break
+                 * media detection.
+                 */
+            }
+
+
+            /*
+             * Update the lyrics widget.
+             */
+
+            try {
+
+                LyricsWidgetProvider.updateAll(
+                    context
+                )
+
+            } catch (_: Exception) {
+
+                /*
+                 * Lyrics widget errors must never
+                 * break media detection.
                  */
             }
         }
