@@ -4,9 +4,6 @@ import android.os.Bundle
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -21,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,10 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 class VisualizerActivity : ComponentActivity() {
 
@@ -80,36 +74,27 @@ fun FullScreenVisualizer() {
         mutableFloatStateOf(0f)
     }
 
-    var visualizerIndex by remember {
+    var visualizer by remember {
         mutableIntStateOf(0)
     }
 
-    var dragAmount by remember {
+    var swipeDistance by remember {
         mutableFloatStateOf(0f)
     }
 
-    LaunchedEffect(media.playing) {
+    LaunchedEffect(media.playing, media.title) {
 
         while (true) {
 
-            if (media.playing) {
-                phase += 0.045f
+            phase += if (media.playing) {
+                0.045f
             } else {
-                phase += 0.012f
+                0.012f
             }
 
             delay(16)
         }
     }
-
-    val transitionAmount by animateFloatAsState(
-        targetValue = visualizerIndex.toFloat(),
-        animationSpec = tween(
-            durationMillis = 420,
-            easing = FastOutSlowInEasing
-        ),
-        label = "visualizerTransition"
-    )
 
     Box(
         modifier = Modifier
@@ -117,9 +102,9 @@ fun FullScreenVisualizer() {
             .background(
                 Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF171126),
-                        Color(0xFF080710),
-                        Color(0xFF020204)
+                        Color(0xFF19112E),
+                        Color(0xFF08070D),
+                        Color.Black
                     )
                 )
             )
@@ -128,49 +113,78 @@ fun FullScreenVisualizer() {
                 detectHorizontalDragGestures(
 
                     onDragStart = {
-                        dragAmount = 0f
+                        swipeDistance = 0f
                     },
 
                     onHorizontalDrag = { _, amount ->
-                        dragAmount += amount
+                        swipeDistance += amount
                     },
 
                     onDragEnd = {
 
-                        if (abs(dragAmount) > 100f) {
+                        if (swipeDistance < -100f) {
 
-                            if (dragAmount < 0f) {
-                                visualizerIndex =
-                                    (visualizerIndex + 1) % VISUALIZER_COUNT
-                            } else {
-                                visualizerIndex =
-                                    (visualizerIndex - 1 + VISUALIZER_COUNT) %
-                                        VISUALIZER_COUNT
-                            }
+                            visualizer =
+                                (visualizer + 1) %
+                                    VISUALIZER_COUNT
+
+                        } else if (swipeDistance > 100f) {
+
+                            visualizer =
+                                (visualizer - 1 +
+                                    VISUALIZER_COUNT) %
+                                    VISUALIZER_COUNT
                         }
 
-                        dragAmount = 0f
+                        swipeDistance = 0f
                     }
                 )
             }
     ) {
 
-        VisualizerBackground(
-            type = visualizerIndex,
-            phase = phase,
-            playing = media.playing,
-            transitionAmount = transitionAmount
-        )
+        Canvas(
+            modifier = Modifier.fillMaxSize()
+        ) {
+
+            when (visualizer) {
+
+                0 -> drawNeonBars(
+                    phase = phase,
+                    playing = media.playing
+                )
+
+                1 -> drawCircularSpectrum(
+                    phase = phase,
+                    playing = media.playing
+                )
+
+                2 -> drawWaveRibbons(
+                    phase = phase,
+                    playing = media.playing
+                )
+
+                3 -> drawParticles(
+                    phase = phase,
+                    playing = media.playing
+                )
+
+                4 -> drawPulseOrb(
+                    phase = phase,
+                    playing = media.playing
+                )
+
+                5 -> drawMirrorSpectrum(
+                    phase = phase,
+                    playing = media.playing
+                )
+            }
+        }
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = 28.dp,
-                    end = 28.dp,
-                    bottom = 32.dp
-                )
-                .align(Alignment.BottomCenter),
+                .align(Alignment.BottomCenter)
+                .padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
@@ -187,8 +201,8 @@ fun FullScreenVisualizer() {
 
             Text(
                 text = media.artist,
-                color = Color(0xFFB7B2C2),
-                fontSize = 17.sp,
+                color = Color(0xFFB8B1C3),
+                fontSize = 16.sp,
                 maxLines = 1
             )
 
@@ -196,9 +210,33 @@ fun FullScreenVisualizer() {
                 modifier = Modifier.height(18.dp)
             )
 
-            VisualizerIndicator(
-                current = visualizerIndex
-            )
+            Row(
+                horizontalArrangement =
+                    Arrangement.spacedBy(7.dp)
+            ) {
+
+                repeat(VISUALIZER_COUNT) { index ->
+
+                    Box(
+                        modifier = Modifier
+                            .size(
+                                if (index == visualizer) {
+                                    8.dp
+                                } else {
+                                    5.dp
+                                }
+                            )
+                            .clip(CircleShape)
+                            .background(
+                                if (index == visualizer) {
+                                    Color(0xFFB77CFF)
+                                } else {
+                                    Color(0xFF45404F)
+                                }
+                            )
+                    )
+                }
+            }
 
             Spacer(
                 modifier = Modifier.height(18.dp)
@@ -206,16 +244,19 @@ fun FullScreenVisualizer() {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement =
+                    Arrangement.SpaceEvenly,
+                verticalAlignment =
+                    Alignment.CenterVertically
             ) {
 
                 IconButton(
                     onClick = {
                         MediaRepository.previous()
                     },
-                    modifier = Modifier.size(62.dp)
+                    modifier = Modifier.size(64.dp)
                 ) {
+
                     Text(
                         text = "⏮",
                         color = Color.White,
@@ -223,40 +264,48 @@ fun FullScreenVisualizer() {
                     )
                 }
 
-                IconButton(
-                    onClick = {
-                        MediaRepository.togglePlayPause()
-                    },
+                Box(
                     modifier = Modifier
-                        .size(76.dp)
+                        .size(82.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.linearGradient(
                                 listOf(
-                                    Color(0xFFB66DFF),
-                                    Color(0xFF596FFF)
+                                    Color(0xFFAA7CFF),
+                                    Color(0xFF586DFF)
                                 )
                             )
-                        )
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text =
-                            if (media.playing) {
-                                "Ⅱ"
-                            } else {
-                                "▶"
-                            },
-                        color = Color.White,
-                        fontSize = 28.sp
-                    )
+
+                    IconButton(
+                        onClick = {
+                            MediaRepository
+                                .togglePlayPause()
+                        }
+                    ) {
+
+                        Text(
+                            text =
+                                if (media.playing) {
+                                    "Ⅱ"
+                                } else {
+                                    "▶"
+                                },
+                            color = Color.White,
+                            fontSize = 30.sp
+                        )
+                    }
                 }
 
                 IconButton(
                     onClick = {
                         MediaRepository.next()
                     },
-                    modifier = Modifier.size(62.dp)
+                    modifier = Modifier.size(64.dp)
                 ) {
+
                     Text(
                         text = "⏭",
                         color = Color.White,
@@ -270,304 +319,281 @@ fun FullScreenVisualizer() {
             )
 
             Text(
-                text = "SWIPE LEFT / RIGHT TO CHANGE VISUALIZER",
-                color = Color(0xFF77727F),
-                fontSize = 10.sp,
-                letterSpacing = 1.2.sp
+                text = "SWIPE TO CHANGE VISUALIZER",
+                color = Color(0xFF756A84),
+                fontSize = 9.sp,
+                letterSpacing = 2.sp
             )
         }
     }
 }
 
-@Composable
-private fun VisualizerIndicator(
-    current: Int
-) {
 
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+/* ================================================= */
+/* 1 — NEON BARS */
+/* ================================================= */
 
-        repeat(VISUALIZER_COUNT) { index ->
-
-            Box(
-                modifier = Modifier
-                    .size(
-                        if (index == current) 8.dp else 5.dp
-                    )
-                    .clip(CircleShape)
-                    .background(
-                        if (index == current) {
-                            Color(0xFFB77CFF)
-                        } else {
-                            Color(0xFF494451)
-                        }
-                    )
-            )
-        }
-    }
-}
-
-@Composable
-private fun VisualizerBackground(
-    type: Int,
-    phase: Float,
-    playing: Boolean,
-    transitionAmount: Float
-) {
-
-    Canvas(
-        modifier = Modifier.fillMaxSize()
-    ) {
-
-        when (type) {
-
-            0 -> drawNeonSpectrum(
-                phase = phase,
-                playing = playing
-            )
-
-            1 -> drawRadialSpectrum(
-                phase = phase,
-                playing = playing
-            )
-
-            2 -> drawWaveRibbons(
-                phase = phase,
-                playing = playing
-            )
-
-            3 -> drawParticleField(
-                phase = phase,
-                playing = playing
-            )
-
-            4 -> drawPulseOrb(
-                phase = phase,
-                playing = playing
-            )
-
-            5 -> drawMirrorSpectrum(
-                phase = phase,
-                playing = playing
-            )
-        }
-    }
-}
-
-/* ------------------------------------------------ */
-/* 1. NEON SPECTRUM */
-/* ------------------------------------------------ */
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawNeonSpectrum(
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawNeonBars(
     phase: Float,
     playing: Boolean
 ) {
 
-    val bars = 72
-    val gap = size.width * 0.004f
+    val bars = 64
+    val gap = 5f
 
     val barWidth =
-        (size.width - gap * (bars + 1)) / bars
+        (size.width - gap * (bars + 1)) /
+            bars
 
-    val centerY = size.height * 0.47f
+    val centerY =
+        size.height * 0.42f
 
     for (i in 0 until bars) {
 
-        val n = i.toFloat() / bars
+        val n =
+            i.toFloat() / bars
 
-        val waveA =
-            0.5f +
-                0.5f *
-                sin(
-                    phase * 3.4f +
-                        n * 14f
-                )
+        val wave1 =
+            (
+                0.5f +
+                    0.5f *
+                    sin(
+                        phase * 3.4f +
+                            n * 19f
+                    )
+                ).toFloat()
 
-        val waveB =
-            0.5f +
-                0.5f *
-                sin(
-                    phase * 1.7f +
-                        n * 28f
-                )
+        val wave2 =
+            (
+                0.5f +
+                    0.5f *
+                    sin(
+                        phase * 1.6f +
+                            n * 37f
+                    )
+                ).toFloat()
 
         val envelope =
             sin(n * PI).toFloat()
 
         val amount =
             if (playing) {
-                0.12f +
-                    envelope * (
-                        waveA * 0.65f +
-                            waveB * 0.25f
+
+                0.10f +
+                    envelope *
+                    (
+                        wave1 * 0.65f +
+                            wave2 * 0.25f
                         )
+
             } else {
-                0.04f
+                0.035f
             }
 
-        val barHeight =
-            size.height * amount * 0.58f
+        val height =
+            size.height *
+                amount *
+                0.55f
 
         val x =
-            gap + i * (barWidth + gap)
+            gap +
+                i *
+                (barWidth + gap)
 
         drawRoundRect(
             brush = Brush.verticalGradient(
                 listOf(
-                    Color(0xFFFF4FD8),
-                    Color(0xFF9A6CFF),
-                    Color(0xFF4E7BFF),
-                    Color(0xFF37DFFF)
+                    Color(0xFFFF48D2),
+                    Color(0xFF9C65FF),
+                    Color(0xFF43D8FF)
                 )
             ),
-            topLeft = androidx.compose.ui.geometry.Offset(
-                x,
-                centerY - barHeight
-            ),
-            size = androidx.compose.ui.geometry.Size(
-                barWidth,
-                barHeight
-            ),
+            topLeft =
+                androidx.compose.ui.geometry
+                    .Offset(
+                        x,
+                        centerY - height
+                    ),
+            size =
+                androidx.compose.ui.geometry
+                    .Size(
+                        barWidth,
+                        height
+                    ),
             cornerRadius =
-                androidx.compose.ui.geometry.CornerRadius(
-                    barWidth,
-                    barWidth
-                )
+                androidx.compose.ui.geometry
+                    .CornerRadius(
+                        6f,
+                        6f
+                    )
         )
 
         drawRoundRect(
             brush = Brush.verticalGradient(
                 listOf(
-                    Color(0xFF37DFFF),
-                    Color(0xFF596FFF),
-                    Color(0xFFFF4FD8)
+                    Color(0xFF43D8FF),
+                    Color(0xFF596CFF),
+                    Color(0xFFFF48D2)
                 )
             ),
-            topLeft = androidx.compose.ui.geometry.Offset(
-                x,
-                centerY
-            ),
-            size = androidx.compose.ui.geometry.Size(
-                barWidth,
-                barHeight
-            ),
+            topLeft =
+                androidx.compose.ui.geometry
+                    .Offset(
+                        x,
+                        centerY
+                    ),
+            size =
+                androidx.compose.ui.geometry
+                    .Size(
+                        barWidth,
+                        height
+                    ),
             cornerRadius =
-                androidx.compose.ui.geometry.CornerRadius(
-                    barWidth,
-                    barWidth
-                )
+                androidx.compose.ui.geometry
+                    .CornerRadius(
+                        6f,
+                        6f
+                    )
         )
     }
 }
 
-/* ------------------------------------------------ */
-/* 2. RADIAL SPECTRUM */
-/* ------------------------------------------------ */
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialSpectrum(
+/* ================================================= */
+/* 2 — CIRCULAR SPECTRUM */
+/* ================================================= */
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCircularSpectrum(
     phase: Float,
     playing: Boolean
 ) {
 
-    val cx = size.width / 2f
-    val cy = size.height * 0.43f
+    val centerX =
+        size.width / 2f
+
+    val centerY =
+        size.height * 0.40f
 
     val radius =
-        minOf(size.width, size.height) * 0.20f
-
-    val bars = 100
+        size.minDimension * 0.19f
 
     drawCircle(
         brush = Brush.radialGradient(
             listOf(
-                Color(0xFF9E6CFF).copy(alpha = 0.35f),
+                Color(0xFF9B6CFF).copy(alpha = 0.45f),
                 Color.Transparent
             )
         ),
-        radius = radius * 2.2f,
-        center = androidx.compose.ui.geometry.Offset(
-            cx,
-            cy
-        )
+        radius = radius * 2.3f,
+        center =
+            androidx.compose.ui.geometry
+                .Offset(
+                    centerX,
+                    centerY
+                )
     )
 
     drawCircle(
-        color = Color(0xFF8F6CFF).copy(alpha = 0.12f),
+        color =
+            Color(0xFF9B6CFF)
+                .copy(alpha = 0.18f),
         radius = radius,
-        center = androidx.compose.ui.geometry.Offset(
-            cx,
-            cy
-        ),
+        center =
+            androidx.compose.ui.geometry
+                .Offset(
+                    centerX,
+                    centerY
+                ),
         style = Stroke(2f)
     )
+
+    val bars = 96
 
     for (i in 0 until bars) {
 
         val angle =
-            (i.toFloat() / bars) *
-                (2f * PI.toFloat())
+            i.toFloat() /
+                bars *
+                2f *
+                PI.toFloat()
 
         val wave =
-            0.5f +
-                0.5f *
-                sin(
-                    phase * 2.8f +
-                        i * 0.31f
-                )
+            (
+                0.5f +
+                    0.5f *
+                    sin(
+                        phase * 2.7f +
+                            i * 0.32f
+                    )
+                ).toFloat()
 
-        val secondary =
-            0.5f +
-                0.5f *
-                sin(
-                    phase * 1.1f +
-                        i * 0.12f
-                )
+        val wave2 =
+            (
+                0.5f +
+                    0.5f *
+                    cos(
+                        phase * 1.4f +
+                            i * 0.17f
+                    )
+                ).toFloat()
 
         val length =
             if (playing) {
-                25f +
-                    wave * 75f +
-                    secondary * 30f
+
+                20f +
+                    wave * 70f +
+                    wave2 * 25f
+
             } else {
-                15f
+                12f
             }
 
         val inner =
-            radius + 8f
+            radius + 10f
 
         val outer =
             inner + length
 
-        val startX =
-            cx + cos(angle) * inner
+        val start =
+            androidx.compose.ui.geometry
+                .Offset(
+                    (
+                        centerX +
+                            cos(angle) *
+                            inner
+                        ).toFloat(),
+                    (
+                        centerY +
+                            sin(angle) *
+                            inner
+                        ).toFloat()
+                )
 
-        val startY =
-            cy + sin(angle) * inner
-
-        val endX =
-            cx + cos(angle) * outer
-
-        val endY =
-            cy + sin(angle) * outer
+        val end =
+            androidx.compose.ui.geometry
+                .Offset(
+                    (
+                        centerX +
+                            cos(angle) *
+                            outer
+                        ).toFloat(),
+                    (
+                        centerY +
+                            sin(angle) *
+                            outer
+                        ).toFloat()
+                )
 
         drawLine(
             brush = Brush.linearGradient(
                 listOf(
-                    Color(0xFF4FD8FF),
-                    Color(0xFF8B6CFF),
-                    Color(0xFFFF55D6)
+                    Color(0xFF45DEFF),
+                    Color(0xFF966BFF),
+                    Color(0xFFFF52D7)
                 )
             ),
-            start = androidx.compose.ui.geometry.Offset(
-                startX.toFloat(),
-                startY.toFloat()
-            ),
-            end = androidx.compose.ui.geometry.Offset(
-                endX.toFloat(),
-                endY.toFloat()
-            ),
+            start = start,
+            end = end,
             strokeWidth = 4f,
             cap = StrokeCap.Round
         )
@@ -575,49 +601,55 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRadialSpectrum(
 
     drawCircle(
         color = Color(0xFF050509),
-        radius = radius * 0.75f,
-        center = androidx.compose.ui.geometry.Offset(
-            cx,
-            cy
-        )
+        radius = radius * 0.72f,
+        center =
+            androidx.compose.ui.geometry
+                .Offset(
+                    centerX,
+                    centerY
+                )
     )
 
     drawCircle(
-        color = Color(0xFFB77CFF).copy(alpha = 0.8f),
-        radius = radius * 0.08f,
-        center = androidx.compose.ui.geometry.Offset(
-            cx,
-            cy
-        )
+        color = Color(0xFFBD82FF),
+        radius = 8f,
+        center =
+            androidx.compose.ui.geometry
+                .Offset(
+                    centerX,
+                    centerY
+                )
     )
 }
 
-/* ------------------------------------------------ */
-/* 3. WAVE RIBBONS */
-/* ------------------------------------------------ */
+
+/* ================================================= */
+/* 3 — WAVE RIBBONS */
+/* ================================================= */
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWaveRibbons(
     phase: Float,
     playing: Boolean
 ) {
 
-    val waves = 7
+    val waveCount = 7
 
-    for (wave in 0 until waves) {
+    for (wave in 0 until waveCount) {
 
         val path = Path()
 
-        val yBase =
-            size.height * (
-                0.20f +
-                    wave * 0.085f
-                )
+        val baseY =
+            size.height *
+                (
+                    0.18f +
+                        wave * 0.085f
+                    )
 
-        for (xIndex in 0..120) {
+        for (point in 0..120) {
 
             val x =
                 size.width *
-                    xIndex /
+                    point /
                     120f
 
             val normalized =
@@ -626,32 +658,33 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWaveRibbons(
             val amplitude =
                 size.height *
                     if (playing) {
-                        0.055f +
+                        0.045f +
                             wave * 0.004f
                     } else {
-                        0.025f
+                        0.020f
                     }
 
-            val frequency =
-                7f +
-                    wave * 0.8f
-
             val y =
-                yBase +
+                baseY +
+
                     sin(
-                        normalized * frequency * PI * 2 +
-                            phase * (1.5f + wave * 0.12f)
+                        normalized *
+                            (7f + wave) *
+                            PI * 2f +
+                            phase *
+                            (1.3f + wave * 0.13f)
                     ).toFloat() *
                     amplitude +
 
                     sin(
-                        normalized * 15f -
-                            phase * 0.8f
+                        normalized *
+                            17f -
+                            phase
                     ).toFloat() *
                     amplitude *
                     0.35f
 
-            if (xIndex == 0) {
+            if (point == 0) {
                 path.moveTo(x, y)
             } else {
                 path.lineTo(x, y)
@@ -660,35 +693,40 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWaveRibbons(
 
         drawPath(
             path = path,
-            brush = Brush.horizontalGradient(
-                listOf(
-                    Color(0xFF4CE6FF).copy(alpha = 0.25f),
-                    Color(0xFF9C6CFF),
-                    Color(0xFFFF5EDB).copy(alpha = 0.75f),
-                    Color.Transparent
+            brush =
+                Brush.horizontalGradient(
+                    listOf(
+                        Color(0xFF45E5FF)
+                            .copy(alpha = 0.20f),
+                        Color(0xFF9A68FF),
+                        Color(0xFFFF59D8)
+                            .copy(alpha = 0.75f),
+                        Color.Transparent
+                    )
+                ),
+            style =
+                Stroke(
+                    width = 4f,
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
                 )
-            ),
-            style = Stroke(
-                width = 4f + wave * 0.4f,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
-            )
         )
     }
 }
 
-/* ------------------------------------------------ */
-/* 4. PARTICLE FIELD */
-/* ------------------------------------------------ */
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticleField(
+/* ================================================= */
+/* 4 — PARTICLE FIELD */
+/* ================================================= */
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticles(
     phase: Float,
     playing: Boolean
 ) {
 
-    val particleCount = 170
+    val particles = 180
 
-    for (i in 0 until particleCount) {
+    for (i in 0 until particles) {
 
         val seed =
             (i * 97 + 13) % 1000
@@ -701,17 +739,24 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticleField(
 
         val movement =
             if (playing) {
+
                 sin(
                     phase * 0.8f +
                         i * 0.17f
-                ).toFloat() * 0.025f
+                ).toFloat() *
+                    0.025f
+
             } else {
                 0f
             }
 
         val x =
-            (baseX + movement)
-                .mod(1f) *
+            (
+                baseX +
+                    movement
+                ).let {
+                    ((it % 1f) + 1f) % 1f
+                } *
                 size.width
 
         val y =
@@ -721,61 +766,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticleField(
                         phase * 0.6f +
                             i * 0.31f
                     ).toFloat() *
-                    if (playing) 0.035f else 0.008f
-                )
-                .coerceIn(0f, 1f) *
-                size.height
-
-        val pulse =
-            0.5f +
-                0.5f *
-                sin(
-                    phase * 2f +
-                        i * 0.43f
-                )
-
-        val radius =
-            if (playing) {
-                1.5f +
-                    pulse * 4f
-            } else {
-                2f
-            }
-
-        val color =
-            when (i % 4) {
-                0 -> Color(0xFF55DFFF)
-                1 -> Color(0xFF9A70FF)
-                2 -> Color(0xFFFF62D9)
-                else -> Color(0xFFFFFFFF)
-            }
-
-        drawCircle(
-            color = color.copy(
-                alpha =
-                    0.25f +
-                        pulse * 0.65f
-            ),
-            radius = radius,
-            center = androidx.compose.ui.geometry.Offset(
-                x,
-                y
-            )
-        )
-    }
-
-    val cx = size.width / 2f
-    val cy = size.height * 0.42f
-
-    val orbPulse =
-        if (playing) {
-            1f +
-                (
-                    sin(phase * 3.5f) *
-                        0.08f
-                    ).toFloat()
-        } else {
-            1f
-        }
-
-    drawCir
+                    if (playing) {
+                        0.035f
+                    } else {
+                        0.008f
+                    }
+           
