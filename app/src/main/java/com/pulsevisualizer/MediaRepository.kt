@@ -7,6 +7,7 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.SystemClock
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,53 +21,97 @@ import kotlinx.coroutines.flow.StateFlow
 
 object MediaRepository {
 
-    private val _media = MutableStateFlow(MediaInfo())
-
-    val media: StateFlow<MediaInfo> = _media
-
-    private var manager: MediaSessionManager? = null
-
-    private var listener:
-        MediaSessionManager.OnActiveSessionsChangedListener? = null
-
-    private var controllers: List<MediaController> = emptyList()
-
-    private var selectedPackage: String? = null
-
-    private var appContext: Context? = null
-
-    private var updateJob: Job? = null
-
-    private var notificationListenerComponent: ComponentName? = null
-
-    private var lastPackageName = ""
-    private var lastTitle = ""
-    private var lastArtist = ""
-    private var lastPlaying = false
-    private var lastArtwork: Bitmap? = null
-
-    private var started = false
-
-
-    fun start(context: Context) {
-
-        appContext = context.applicationContext
-
-        val component = ComponentName(
-            context,
-            MediaListenerService::class.java
+    private val _media =
+        MutableStateFlow(
+            MediaInfo()
         )
 
-        notificationListenerComponent = component
+    val media: StateFlow<MediaInfo> =
+        _media
+
+    private var manager:
+        MediaSessionManager? =
+        null
+
+    private var listener:
+        MediaSessionManager.OnActiveSessionsChangedListener? =
+        null
+
+    private var controllers:
+        List<MediaController> =
+        emptyList()
+
+    private var selectedPackage:
+        String? =
+        null
+
+    private var appContext:
+        Context? =
+        null
+
+    private var updateJob:
+        Job? =
+        null
+
+    private var notificationListenerComponent:
+        ComponentName? =
+        null
+
+    private var lastPackageName =
+        ""
+
+    private var lastTitle =
+        ""
+
+    private var lastArtist =
+        ""
+
+    private var lastPlaying =
+        false
+
+    private var lastArtwork:
+        Bitmap? =
+        null
+
+    private var lastPosition =
+        0L
+
+    private var lastPlaybackSpeed =
+        0f
+
+    private var lastPositionUpdateTime =
+        0L
+
+    private var started =
+        false
+
+
+    fun start(
+        context: Context
+    ) {
+
+        appContext =
+            context.applicationContext
+
+        val component =
+            ComponentName(
+                context,
+                MediaListenerService::class.java
+            )
+
+        notificationListenerComponent =
+            component
 
         if (manager == null) {
 
-            manager = context.getSystemService(
-                MediaSessionManager::class.java
-            )
+            manager =
+                context.getSystemService(
+                    MediaSessionManager::class.java
+                )
         }
 
-        val sessionManager = manager ?: return
+        val sessionManager =
+            manager ?: return
 
         if (started) {
 
@@ -75,36 +120,38 @@ object MediaRepository {
             return
         }
 
-        started = true
+        started =
+            true
 
         val activeListener =
-            MediaSessionManager.OnActiveSessionsChangedListener { sessions ->
+            MediaSessionManager
+                .OnActiveSessionsChangedListener { sessions ->
 
-                update(
-                    sessions ?: emptyList()
-                )
-            }
+                    update(
+                        sessions ?: emptyList()
+                    )
+                }
 
-        listener = activeListener
+        listener =
+            activeListener
 
         try {
 
-            /*
-             * Android only allows getActiveSessions()
-             * when the notification listener component
-             * is enabled.
-             */
+            sessionManager
+                .addOnActiveSessionsChangedListener(
+                    activeListener,
+                    notificationListenerComponent
+                )
 
-            sessionManager.addOnActiveSessionsChangedListener(
-                activeListener,
-                notificationListenerComponent
-            )
+        } catch (
+            _: SecurityException
+        ) {
 
-        } catch (_: SecurityException) {
+            started =
+                false
 
-            started = false
-
-            controllers = emptyList()
+            controllers =
+                emptyList()
 
             return
         }
@@ -122,7 +169,7 @@ object MediaRepository {
 
                     refresh()
 
-                    delay(750)
+                    delay(250)
                 }
             }
     }
@@ -132,47 +179,80 @@ object MediaRepository {
 
         updateJob?.cancel()
 
-        updateJob = null
+        updateJob =
+            null
 
         try {
 
             listener?.let { currentListener ->
 
-                manager?.removeOnActiveSessionsChangedListener(
-                    currentListener
-                )
+                manager
+                    ?.removeOnActiveSessionsChangedListener(
+                        currentListener
+                    )
             }
 
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
         }
 
-        listener = null
+        listener =
+            null
 
-        manager = null
+        manager =
+            null
 
-        controllers = emptyList()
+        controllers =
+            emptyList()
 
-        selectedPackage = null
+        selectedPackage =
+            null
 
-        appContext = null
+        appContext =
+            null
 
-        notificationListenerComponent = null
+        notificationListenerComponent =
+            null
 
-        started = false
+        started =
+            false
 
-        lastPackageName = ""
-        lastTitle = ""
-        lastArtist = ""
-        lastPlaying = false
-        lastArtwork = null
+        lastPackageName =
+            ""
 
-        _media.value = MediaInfo()
+        lastTitle =
+            ""
+
+        lastArtist =
+            ""
+
+        lastPlaying =
+            false
+
+        lastArtwork =
+            null
+
+        lastPosition =
+            0L
+
+        lastPlaybackSpeed =
+            0f
+
+        lastPositionUpdateTime =
+            0L
+
+        _media.value =
+            MediaInfo()
     }
 
 
-    fun selectPackage(packageName: String?) {
+    fun selectPackage(
+        packageName: String?
+    ) {
 
-        selectedPackage = packageName
+        selectedPackage =
+            packageName
 
         update(
             controllers
@@ -180,46 +260,62 @@ object MediaRepository {
     }
 
 
-    fun availablePackages(): List<String> {
+    fun availablePackages():
+        List<String> {
 
         return controllers
-            .map { it.packageName }
+            .map {
+                it.packageName
+            }
             .distinct()
     }
 
 
-    private fun currentController(): MediaController? {
+    private fun currentController():
+        MediaController? {
 
-        /*
-         * Prefer the selected application.
-         */
+        selectedPackage?.let {
+            packageName ->
 
-        selectedPackage?.let { packageName ->
+            controllers
+                .firstOrNull {
+                    it.packageName ==
+                        packageName
+                }
+                ?.let {
 
-            controllers.firstOrNull {
-                it.packageName == packageName
-            }?.let {
+                    return it
+                }
+        }
+
+        controllers
+            .firstOrNull {
+
+                it.playbackState?.state ==
+                    PlaybackState.STATE_PLAYING
+
+            }
+            ?.let {
+
                 return it
             }
-        }
 
-        /*
-         * Otherwise prefer a currently playing session.
-         */
+        controllers
+            .firstOrNull {
 
-        controllers.firstOrNull {
+                val metadata =
+                    it.metadata
 
-            it.playbackState?.state ==
-                PlaybackState.STATE_PLAYING
+                !metadata
+                    ?.getString(
+                        MediaMetadata.METADATA_KEY_TITLE
+                    )
+                    .isNullOrBlank()
+            }
+            ?.let {
 
-        }?.let {
-
-            return it
-        }
-
-        /*
-         * Finally use the first available controller.
-         */
+                return it
+            }
 
         return controllers.firstOrNull()
     }
@@ -252,18 +348,24 @@ object MediaRepository {
                 ?: return
 
         val state =
-            controller.playbackState?.state
+            controller
+                .playbackState
+                ?.state
 
         if (
             state ==
             PlaybackState.STATE_PLAYING
         ) {
 
-            controller.transportControls.pause()
+            controller
+                .transportControls
+                .pause()
 
         } else {
 
-            controller.transportControls.play()
+            controller
+                .transportControls
+                .play()
         }
 
         refreshDelayed()
@@ -309,12 +411,11 @@ object MediaRepository {
             refresh()
         }
     }
-
-
-    private fun refresh() {
+        private fun refresh() {
 
         val sessionManager =
-            manager ?: return
+            manager
+                ?: return
 
         val component =
             notificationListenerComponent
@@ -323,24 +424,22 @@ object MediaRepository {
         try {
 
             val sessions =
-                sessionManager.getActiveSessions(
-                    component
-                )
+                sessionManager
+                    .getActiveSessions(
+                        component
+                    )
 
             update(
                 sessions
             )
 
-        } catch (_: SecurityException) {
+        } catch (
+            _: SecurityException
+        ) {
 
-            /*
-             * Android can temporarily revoke access
-             * while the notification listener reconnects.
-             *
-             * Keep the existing media state.
-             */
-
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
         }
     }
 
@@ -349,16 +448,12 @@ object MediaRepository {
         list: List<MediaController>
     ) {
 
-        controllers = list
+        controllers =
+            list
 
-        if (list.isEmpty()) {
-
-            /*
-             * Don't immediately erase a valid song.
-             *
-             * Android can briefly return an empty list
-             * while Spotify/YouTube changes sessions.
-             */
+        if (
+            list.isEmpty()
+        ) {
 
             return
         }
@@ -366,90 +461,116 @@ object MediaRepository {
         val controller =
             chooseController(
                 list
-            ) ?: return
-
+            )
+                ?: return
 
         val metadata =
             controller.metadata
 
-
         val title =
-            metadata?.getString(
-                MediaMetadata.METADATA_KEY_TITLE
-            )
+            metadata
+                ?.getString(
+                    MediaMetadata.METADATA_KEY_TITLE
+                )
                 ?.takeIf {
                     it.isNotBlank()
                 }
-                ?: metadata?.getString(
-                    MediaMetadata.METADATA_KEY_DISPLAY_TITLE
-                )
+                ?: metadata
+                    ?.getString(
+                        MediaMetadata
+                            .METADATA_KEY_DISPLAY_TITLE
+                    )
                     ?.takeIf {
                         it.isNotBlank()
                     }
                 ?: "Unknown title"
 
-
         val artist =
-            metadata?.getString(
-                MediaMetadata.METADATA_KEY_ARTIST
-            )
+            metadata
+                ?.getString(
+                    MediaMetadata.METADATA_KEY_ARTIST
+                )
                 ?.takeIf {
                     it.isNotBlank()
                 }
-                ?: metadata?.getString(
-                    MediaMetadata.METADATA_KEY_ALBUM_ARTIST
-                )
+                ?: metadata
+                    ?.getString(
+                        MediaMetadata
+                            .METADATA_KEY_ALBUM_ARTIST
+                    )
                     ?.takeIf {
                         it.isNotBlank()
                     }
-                ?: metadata?.getString(
-                    MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE
-                )
+                ?: metadata
+                    ?.getString(
+                        MediaMetadata
+                            .METADATA_KEY_DISPLAY_SUBTITLE
+                    )
                     ?.takeIf {
                         it.isNotBlank()
                     }
                 ?: ""
 
-
         val artwork =
-            metadata?.getBitmap(
-                MediaMetadata.METADATA_KEY_ART
-            )
-                ?: metadata?.getBitmap(
-                    MediaMetadata.METADATA_KEY_ALBUM_ART
+            metadata
+                ?.getBitmap(
+                    MediaMetadata.METADATA_KEY_ART
                 )
-
+                ?: metadata
+                    ?.getBitmap(
+                        MediaMetadata
+                            .METADATA_KEY_ALBUM_ART
+                    )
 
         val playbackState =
-            controller.playbackState?.state
+            controller.playbackState
 
+        val state =
+            playbackState?.state
 
         val playing =
-            playbackState ==
+            state ==
                 PlaybackState.STATE_PLAYING
 
+        val position =
+            playbackState
+                ?.position
+                ?.coerceAtLeast(0L)
+                ?: 0L
 
-        val packageName =
-            controller.packageName
+        val speed =
+            playbackState
+                ?.playbackSpeed
+                ?: 0f
 
+        val positionUpdateTime =
+            playbackState
+                ?.lastPositionUpdateTime
+                ?: 0L
 
         val changed =
-            packageName != lastPackageName ||
+            packageNameChanged(
+                controller.packageName
+            ) ||
             title != lastTitle ||
             artist != lastArtist ||
             playing != lastPlaying ||
+            positionChanged(
+                position
+            ) ||
+            speed != lastPlaybackSpeed ||
+            positionUpdateTime !=
+                lastPositionUpdateTime ||
             artworkChanged(
                 artwork
             )
-
 
         if (!changed) {
             return
         }
 
-
         lastPackageName =
-            packageName
+            controller.packageName
 
         lastTitle =
             title
@@ -460,24 +581,47 @@ object MediaRepository {
         lastPlaying =
             playing
 
+        lastPosition =
+            position
+
+        lastPlaybackSpeed =
+            speed
+
+        lastPositionUpdateTime =
+            positionUpdateTime
+
         lastArtwork =
             artwork
 
-
         _media.value =
             MediaInfo(
-                packageName = packageName,
-                appName = packageName,
-                title = title,
-                artist = artist,
-                artwork = artwork,
-                playing = playing
+                packageName =
+                    controller.packageName,
+
+                appName =
+                    controller.packageName,
+
+                title =
+                    title,
+
+                artist =
+                    artist,
+
+                artwork =
+                    artwork,
+
+                playing =
+                    playing,
+
+                positionMs =
+                    position,
+
+                playbackSpeed =
+                    speed,
+
+                positionUpdateTimeMs =
+                    positionUpdateTime
             )
-
-
-        /*
-         * Update BOTH widgets whenever the media changes.
-         */
 
         updateWidget()
     }
@@ -487,60 +631,115 @@ object MediaRepository {
         list: List<MediaController>
     ): MediaController? {
 
-        /*
-         * 1. Explicitly selected application.
-         */
+        selectedPackage?.let {
+            packageName ->
 
-        selectedPackage?.let { packageName ->
+            list
+                .firstOrNull {
+                    it.packageName ==
+                        packageName
+                }
+                ?.let {
 
-            list.firstOrNull {
-                it.packageName == packageName
-            }?.let {
+                    return it
+                }
+        }
+
+        list
+            .firstOrNull {
+
+                it.playbackState
+                    ?.state ==
+                    PlaybackState.STATE_PLAYING
+
+            }
+            ?.let {
 
                 return it
             }
-        }
 
+        list
+            .firstOrNull {
 
-        /*
-         * 2. Currently playing application.
-         */
+                val metadata =
+                    it.metadata
 
-        list.firstOrNull {
+                !metadata
+                    ?.getString(
+                        MediaMetadata
+                            .METADATA_KEY_TITLE
+                    )
+                    .isNullOrBlank()
+            }
+            ?.let {
 
-            it.playbackState?.state ==
-                PlaybackState.STATE_PLAYING
-
-        }?.let {
-
-            return it
-        }
-
-
-        /*
-         * 3. A session that has actual metadata.
-         */
-
-        list.firstOrNull {
-
-            val metadata =
-                it.metadata
-
-            !metadata?.getString(
-                MediaMetadata.METADATA_KEY_TITLE
-            ).isNullOrBlank()
-
-        }?.let {
-
-            return it
-        }
-
-
-        /*
-         * 4. Last resort.
-         */
+                return it
+            }
 
         return list.firstOrNull()
+    }
+
+
+    fun getCurrentPositionMs():
+        Long {
+
+        val media =
+            _media.value
+
+        if (
+            media.positionUpdateTimeMs <= 0L
+        ) {
+
+            return media.positionMs
+                .coerceAtLeast(0L)
+        }
+
+        if (
+            !media.playing
+        ) {
+
+            return media.positionMs
+                .coerceAtLeast(0L)
+        }
+
+        val elapsed =
+            (
+                SystemClock.elapsedRealtime() -
+                media.positionUpdateTimeMs
+            )
+                .coerceAtLeast(0L)
+
+        val additional =
+            (
+                elapsed.toDouble() *
+                media.playbackSpeed
+                    .toDouble()
+            )
+                .toLong()
+
+        return (
+            media.positionMs +
+            additional
+        )
+            .coerceAtLeast(0L)
+        }
+            private fun packageNameChanged(
+        packageName: String
+    ): Boolean {
+
+        return packageName !=
+            lastPackageName
+    }
+
+
+    private fun positionChanged(
+        position: Long
+    ): Boolean {
+
+        return kotlin.math.abs(
+            position -
+            lastPosition
+        ) > 500L
     }
 
 
@@ -556,7 +755,6 @@ object MediaRepository {
             return false
         }
 
-
         if (
             artwork == null ||
             lastArtwork == null
@@ -564,7 +762,6 @@ object MediaRepository {
 
             return true
         }
-
 
         if (
             artwork.width !=
@@ -574,7 +771,6 @@ object MediaRepository {
             return true
         }
 
-
         if (
             artwork.height !=
             lastArtwork!!.height
@@ -583,56 +779,37 @@ object MediaRepository {
             return true
         }
 
-
-        /*
-         * Bitmap references can change even when
-         * the actual artwork is identical, so don't
-         * constantly refresh the widget.
-         */
-
         return false
     }
 
 
     private fun updateWidget() {
 
-        appContext?.let { context ->
-
-            /*
-             * Update the normal music widget.
-             */
+        appContext?.let {
+            context ->
 
             try {
 
-                MusicWidgetProvider.updateAll(
-                    context
-                )
+                MusicWidgetProvider
+                    .updateAll(
+                        context
+                    )
 
-            } catch (_: Exception) {
-
-                /*
-                 * Widget errors must never break
-                 * media detection.
-                 */
+            } catch (
+                _: Exception
+            ) {
             }
 
-
-            /*
-             * Update the lyrics widget.
-             */
-
             try {
 
-                LyricsWidgetProvider.updateAll(
-                    context
-                )
+                LyricsWidgetProvider
+                    .updateAll(
+                        context
+                    )
 
-            } catch (_: Exception) {
-
-                /*
-                 * Lyrics widget errors must never
-                 * break media detection.
-                 */
+            } catch (
+                _: Exception
+            ) {
             }
         }
     }
