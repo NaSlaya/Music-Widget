@@ -8,8 +8,6 @@
     android:padding="10dp"
     android:background="@drawable/widget_background">
 
-    <!-- Top section -->
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -68,7 +66,7 @@
 
     </LinearLayout>
 
-    <!-- Visualiser -->
+    <!-- RemoteViews-safe visualiser -->
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -76,81 +74,91 @@
         android:gravity="bottom|center_horizontal"
         android:orientation="horizontal">
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="8dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="14dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="20dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="12dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="23dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="16dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="25dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="18dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="22dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="13dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="19dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
-        <View
-            android:layout_width="3dp"
+        <TextView
+            android:layout_width="4dp"
             android:layout_height="10dp"
             android:layout_margin="2dp"
-            android:background="@drawable/widget_bar" />
+            android:background="@drawable/widget_bar"
+            android:text="" />
 
     </LinearLayout>
-
-    <!-- Controls -->
 
     <LinearLayout
         android:layout_width="match_parent"
