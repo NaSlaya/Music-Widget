@@ -40,9 +40,6 @@ class LyricsWidgetProvider :
         private var loading =
             false
 
-        private var lastDisplayedLine =
-            ""
-
         private var lastDisplayedIndex =
             -1
 
@@ -78,9 +75,7 @@ class LyricsWidgetProvider :
 
             val manager =
                 AppWidgetManager
-                    .getInstance(
-                        context
-                    )
+                    .getInstance(context)
 
             val component =
                 ComponentName(
@@ -113,26 +108,20 @@ class LyricsWidgetProvider :
                     .takeIf {
                         it.isNotBlank()
                     }
-                    ?: "Nothing playing"
+                    ?: ""
 
             val artist =
                 media.artist
                     .trim()
 
             if (
-                title.equals(
-                    "Nothing playing",
-                    ignoreCase = true
-                )
+                title.isBlank()
             ) {
 
                 lyricLines =
                     emptyList()
 
                 lastSongKey =
-                    ""
-
-                lastDisplayedLine =
                     ""
 
                 lastDisplayedIndex =
@@ -142,9 +131,7 @@ class LyricsWidgetProvider :
                     context,
                     manager,
                     widgetIds,
-                    title,
-                    artist,
-                    "Play a song to see lyrics"
+                    "Play a song"
                 )
 
                 stopPositionUpdates()
@@ -176,9 +163,6 @@ class LyricsWidgetProvider :
                 lyricLines =
                     emptyList()
 
-                lastDisplayedLine =
-                    ""
-
                 lastDisplayedIndex =
                     -1
 
@@ -186,8 +170,6 @@ class LyricsWidgetProvider :
                     context,
                     manager,
                     widgetIds,
-                    title,
-                    artist,
                     "Loading lyrics..."
                 )
 
@@ -195,9 +177,8 @@ class LyricsWidgetProvider :
                     context,
                     manager,
                     widgetIds,
-                    title,
-                    artist,
-                    cleanedTitle
+                    cleanedTitle,
+                    artist
                 )
             }
 
@@ -211,9 +192,8 @@ class LyricsWidgetProvider :
             context: Context,
             manager: AppWidgetManager,
             widgetIds: IntArray,
-            originalTitle: String,
-            artist: String,
-            cleanedTitle: String
+            title: String,
+            artist: String
         ) {
 
             if (loading) {
@@ -227,7 +207,7 @@ class LyricsWidgetProvider :
 
                 val result =
                     fetchLyricsFromLrclib(
-                        cleanedTitle,
+                        title,
                         artist
                     )
 
@@ -277,8 +257,6 @@ class LyricsWidgetProvider :
                             context,
                             manager,
                             widgetIds,
-                            originalTitle,
-                            artist,
                             "Lyrics not found"
                         )
 
@@ -298,11 +276,6 @@ class LyricsWidgetProvider :
             artist: String
         ): List<LyricLine> {
 
-            /*
-             * First:
-             * title + artist
-             */
-
             val firstResult =
                 searchLrclib(
                     title,
@@ -315,11 +288,6 @@ class LyricsWidgetProvider :
 
                 return firstResult
             }
-
-            /*
-             * Second:
-             * title only
-             */
 
             return searchLrclib(
                 title,
@@ -363,9 +331,7 @@ class LyricsWidgetProvider :
                     }
 
                 val connection =
-                    URL(
-                        urlString
-                    )
+                    URL(urlString)
                         .openConnection()
                         as HttpURLConnection
 
@@ -408,9 +374,7 @@ class LyricsWidgetProvider :
                 connection.disconnect()
 
                 val results =
-                    JSONArray(
-                        response
-                    )
+                    JSONArray(response)
 
                 if (
                     results.length() == 0
@@ -451,10 +415,7 @@ class LyricsWidgetProvider :
             ) {
 
                 val item =
-                    results
-                        .getJSONObject(
-                            index
-                        )
+                    results.getJSONObject(index)
 
                 val resultTitle =
                     item.optString(
@@ -470,11 +431,6 @@ class LyricsWidgetProvider :
                     item.optString(
                         "syncedLyrics"
                     )
-
-                /*
-                 * We need synced lyrics because
-                 * plain lyrics have no timestamps.
-                 */
 
                 if (
                     syncedLyrics.isBlank()
@@ -508,9 +464,7 @@ class LyricsWidgetProvider :
                     score += 10
 
                 } else if (
-                    normalise(
-                        resultTitle
-                    )
+                    normalise(resultTitle)
                         .contains(
                             normalise(
                                 requestedTitle
@@ -536,9 +490,7 @@ class LyricsWidgetProvider :
                         score += 10
 
                     } else if (
-                        normalise(
-                            resultArtist
-                        )
+                        normalise(resultArtist)
                             .contains(
                                 normalise(
                                     requestedArtist
@@ -592,9 +544,7 @@ class LyricsWidgetProvider :
 
                 val matches =
                     timestampRegex
-                        .findAll(
-                            rawLine
-                        )
+                        .findAll(rawLine)
                         .toList()
 
                 if (
@@ -636,8 +586,7 @@ class LyricsWidgetProvider :
                             ?: continue
 
                     val fraction =
-                        match
-                            .groupValues[3]
+                        match.groupValues[3]
 
                     val fractionMs =
                         when (
@@ -647,17 +596,13 @@ class LyricsWidgetProvider :
                             1 ->
                                 fraction
                                     .toLongOrNull()
-                                    ?.times(
-                                        100
-                                    )
+                                    ?.times(100)
                                     ?: 0L
 
                             2 ->
                                 fraction
                                     .toLongOrNull()
-                                    ?.times(
-                                        10
-                                    )
+                                    ?.times(10)
                                     ?: 0L
 
                             3 ->
@@ -682,7 +627,6 @@ class LyricsWidgetProvider :
                         LyricLine(
                             timeMs =
                                 timeMs,
-
                             text =
                                 text
                         )
@@ -690,10 +634,9 @@ class LyricsWidgetProvider :
                 }
             }
 
-            return result
-                .sortedBy {
-                    it.timeMs
-                }
+            return result.sortedBy {
+                it.timeMs
+            }
         }
 
 
@@ -746,8 +689,8 @@ class LyricsWidgetProvider :
             ) {
 
                 if (
-                    lyricLines[index]
-                        .timeMs <= position
+                    lyricLines[index].timeMs <=
+                    position
                 ) {
 
                     currentIndex =
@@ -768,14 +711,12 @@ class LyricsWidgetProvider :
             }
 
             val currentLine =
-                lyricLines[
-                    currentIndex
-                ]
+                lyricLines[currentIndex]
 
             if (
                 !force &&
                 currentIndex ==
-                    lastDisplayedIndex
+                lastDisplayedIndex
             ) {
 
                 return
@@ -783,9 +724,6 @@ class LyricsWidgetProvider :
 
             lastDisplayedIndex =
                 currentIndex
-
-            lastDisplayedLine =
-                currentLine.text
 
             updateCurrentLineOnWidgets(
                 currentLine.text
@@ -802,10 +740,9 @@ class LyricsWidgetProvider :
                     ?: return
 
             val manager =
-                AppWidgetManager
-                    .getInstance(
-                        context
-                    )
+                AppWidgetManager.getInstance(
+                    context
+                )
 
             val component =
                 ComponentName(
@@ -827,31 +764,29 @@ class LyricsWidgetProvider :
                 return
             }
 
-            val media =
-                MediaRepository
-                    .media
-                    .value
-
             val views =
                 RemoteViews(
                     context.packageName,
                     R.layout.widget_lyrics
                 )
 
-            views.setTextViewText(
-                R.id.lyrics_title,
-                media.title
-            )
-
-            views.setTextViewText(
-                R.id.lyrics_artist,
-                media.artist
-            )
+            /*
+             * ONLY the lyric is displayed.
+             */
 
             views.setTextViewText(
                 R.id.lyrics_text,
                 text
             )
+
+            /*
+             * The animation is defined in the
+             * widget layout using an animated
+             * drawable/transition.
+             *
+             * We also use a short alpha change
+             * so the line doesn't appear abruptly.
+             */
 
             setClickAction(
                 context,
@@ -873,8 +808,6 @@ class LyricsWidgetProvider :
             context: Context,
             manager: AppWidgetManager,
             widgetIds: IntArray,
-            title: String,
-            artist: String,
             text: String
         ) {
 
@@ -893,15 +826,10 @@ class LyricsWidgetProvider :
                             R.layout.widget_lyrics
                         )
 
-                    views.setTextViewText(
-                        R.id.lyrics_title,
-                        title
-                    )
-
-                    views.setTextViewText(
-                        R.id.lyrics_artist,
-                        artist
-                    )
+                    /*
+                     * The widget now contains ONLY
+                     * the lyric text.
+                     */
 
                     views.setTextViewText(
                         R.id.lyrics_text,
@@ -911,9 +839,7 @@ class LyricsWidgetProvider :
                     setClickAction(
                         context,
                         views,
-                        intArrayOf(
-                            widgetId
-                        )
+                        intArrayOf(widgetId)
                     )
 
                     manager.updateAppWidget(
@@ -983,28 +909,20 @@ class LyricsWidgetProvider :
 
             val patterns =
                 listOf(
-
                     "(Official Lyric Video)",
                     "[Official Lyric Video]",
-
                     "(Official Lyrics)",
                     "[Official Lyrics]",
-
                     "(Lyric Video)",
                     "[Lyric Video]",
-
                     "(Lyrics)",
                     "[Lyrics]",
-
                     "(Official Audio)",
                     "[Official Audio]",
-
                     "(Official Video)",
                     "[Official Video]",
-
                     "(Official Music Video)",
                     "[Official Music Video]",
-
                     "(Audio)",
                     "[Audio]"
                 )
@@ -1023,9 +941,7 @@ class LyricsWidgetProvider :
 
             return result
                 .replace(
-                    Regex(
-                        "\\s{2,}"
-                    ),
+                    Regex("\\s{2,}"),
                     " "
                 )
                 .trim()
@@ -1039,15 +955,11 @@ class LyricsWidgetProvider :
             return value
                 .lowercase()
                 .replace(
-                    Regex(
-                        "[^a-z0-9 ]"
-                    ),
+                    Regex("[^a-z0-9 ]"),
                     ""
                 )
                 .replace(
-                    Regex(
-                        "\\s+"
-                    ),
+                    Regex("\\s+"),
                     " "
                 )
                 .trim()
@@ -1069,9 +981,7 @@ class LyricsWidgetProvider :
         cachedContext =
             context.applicationContext
 
-        updateAll(
-            context
-        )
+        updateAll(context)
     }
 
 
@@ -1082,9 +992,7 @@ class LyricsWidgetProvider :
         cachedContext =
             context.applicationContext
 
-        updateAll(
-            context
-        )
+        updateAll(context)
     }
 
 
@@ -1114,13 +1022,10 @@ class LyricsWidgetProvider :
         lastSongKey =
             ""
 
-        lastDisplayedLine =
-            ""
-
         lastDisplayedIndex =
             -1
 
         cachedContext =
             null
-    }
+    } 
 }
