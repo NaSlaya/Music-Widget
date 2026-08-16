@@ -1,5 +1,6 @@
 package com.pulsevisualizer
 
+import android.app.AlertDialog
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
@@ -7,13 +8,15 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 
 object NotificationAccessHelper {
 
     /**
-     * Returns true if this app has been granted
-     * Notification Listener access.
+     * Checks whether this application has Notification
+     * Listener access.
+     *
+     * The actual listener used by this project is
+     * MediaListenerService.
      */
     fun hasNotificationAccess(
         context: Context
@@ -27,7 +30,7 @@ object NotificationAccessHelper {
         val component =
             ComponentName(
                 context,
-                MusicNotificationListener::class.java
+                MediaListenerService::class.java
             )
 
         return if (
@@ -43,27 +46,56 @@ object NotificationAccessHelper {
         } else {
 
             /*
-             * Android versions before Oreo don't have
-             * the NotificationManager API above.
+             * Older Android versions do not provide
+             * isNotificationListenerAccessGranted().
              *
-             * Check the enabled notification listeners
-             * directly.
+             * Check Android's enabled notification
+             * listener setting directly instead.
              */
             val enabledListeners =
-                notificationManager
-                    .getEnabledNotificationListenerPackages()
+                Settings.Secure.getString(
+                    context.contentResolver,
+                    "enabled_notification_listeners"
+                )
 
-            enabledListeners.contains(
-                context.packageName
-            )
+            if (
+                enabledListeners.isNullOrBlank()
+            ) {
+
+                false
+
+            } else {
+
+                enabledListeners
+                    .split(":")
+                    .any { value ->
+
+                        try {
+
+                            ComponentName
+                                .unflattenFromString(
+                                    value
+                                )
+                                ?.packageName ==
+                                context.packageName
+
+                        } catch (
+                            _: Exception
+                        ) {
+
+                            false
+                        }
+                    }
+            }
         }
     }
 
 
     /**
-     * Shows the permission explanation dialog.
+     * Shows the explanation dialog and opens the
+     * correct Android Notification Access settings.
      *
-     * If permission is already granted, nothing happens.
+     * Nothing happens if access is already granted.
      */
     fun requestNotificationAccess(
         context: Context
@@ -88,18 +120,12 @@ object NotificationAccessHelper {
                 "Music Widget needs notification access to detect what song is currently playing and keep the lyrics synchronized with your music."
             )
             .setNegativeButton(
-                "Not now"
-            ) {
-                dialog, _ ->
-
-                dialog.dismiss()
-            }
+                "Not now",
+                null
+            )
             .setPositiveButton(
                 "Grant access"
-            ) {
-                dialog, _ ->
-
-                dialog.dismiss()
+            ) { _, _ ->
 
                 openNotificationAccessSettings(
                     context
@@ -114,6 +140,12 @@ object NotificationAccessHelper {
 
     /**
      * Opens Android's Notification Access settings.
+     *
+     * On Android 11 and newer we first attempt to open
+     * the specific MediaListenerService page.
+     *
+     * If the device does not support that page, we
+     * fall back to the general Notification Access page.
      */
     fun openNotificationAccessSettings(
         context: Context
@@ -121,10 +153,6 @@ object NotificationAccessHelper {
 
         try {
 
-            /*
-             * Android 11+ supports opening the specific
-             * listener's detail page.
-             */
             if (
                 Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.R
@@ -133,10 +161,10 @@ object NotificationAccessHelper {
                 val component =
                     ComponentName(
                         context,
-                        MusicNotificationListener::class.java
+                        MediaListenerService::class.java
                     )
 
-                val intent =
+                val detailIntent =
                     Intent(
                         Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS
                     ).apply {
@@ -145,13 +173,12 @@ object NotificationAccessHelper {
                             Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
                             component
                         )
-
                     }
 
                 try {
 
                     context.startActivity(
-                        intent
+                        detailIntent
                     )
 
                     return
@@ -161,37 +188,31 @@ object NotificationAccessHelper {
                 ) {
 
                     /*
-                     * Some Samsung/Android builds may not
-                     * expose the detail page.
+                     * Some Android/Samsung versions don't
+                     * support the individual listener page.
                      *
-                     * Fall back to the general page.
+                     * Continue to the general page.
                      */
                 }
             }
 
-            /*
-             * Universal fallback.
-             */
-            val intent =
+
+            val settingsIntent =
                 Intent(
                     Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
                 )
 
             context.startActivity(
-                intent
+                settingsIntent
             )
 
         } catch (
             _: Exception
         ) {
 
-            /*
-             * Extremely unusual fallback in case the
-             * device doesn't expose the settings activity.
-             */
             Toast.makeText(
                 context,
-                "Please enable Notification access for Music Widget in Android Settings.",
+                "Please enable Notification access for Pulse Visualizer in Android Settings.",
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -199,10 +220,9 @@ object NotificationAccessHelper {
 
 
     /**
-     * Checks permission again after the user returns
-     * from Android Settings.
+     * Called after returning from Android Settings.
      *
-     * Returns true if access is now enabled.
+     * Returns true when access is now enabled.
      */
     fun checkAfterSettingsReturn(
         context: Context
@@ -217,11 +237,6 @@ object NotificationAccessHelper {
             granted
         ) {
 
-            /*
-             * Restart the media listener/repository so
-             * the app immediately starts receiving music
-             * information.
-             */
             try {
 
                 MediaRepository.start(
@@ -231,9 +246,10 @@ object NotificationAccessHelper {
             } catch (
                 _: Exception
             ) {
+
                 /*
-                 * Don't crash the app if the repository
-                 * isn't ready yet.
+                 * Do not crash the Activity if the media
+                 * repository cannot start yet.
                  */
             }
         }
