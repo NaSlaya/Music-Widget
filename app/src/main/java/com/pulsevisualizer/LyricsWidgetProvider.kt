@@ -7,10 +7,21 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import org.json.JSONArray
+import java.net.HttpURLConnection
+import java.net.URLEncoder
+import java.net.URL
+import java.util.concurrent.Executors
 
 class LyricsWidgetProvider : AppWidgetProvider() {
 
     companion object {
+
+        private val executor =
+            Executors.newSingleThreadExecutor()
+
+        private var lastSongKey = ""
+        private var lastLyrics = ""
 
         fun updateAll(context: Context) {
 
@@ -35,97 +46,304 @@ class LyricsWidgetProvider : AppWidgetProvider() {
 
             val title =
                 media.title
+                    .trim()
                     .takeIf { it.isNotBlank() }
                     ?: "Nothing playing"
 
             val artist =
                 media.artist
+                    .trim()
                     .takeIf { it.isNotBlank() }
                     ?: ""
 
-            for (widgetId in widgetIds) {
+            /*
+             * No song playing.
+             */
 
-                val views =
-                    RemoteViews(
-                        context.packageName,
-                        R.layout.widget_lyrics
+            if (
+                title.equals(
+                    "Nothing playing",
+                    ignoreCase = true
+                )
+            ) {
+
+                updateWidgets(
+                    context,
+                    manager,
+                    widgetIds,
+                    title,
+                    artist,
+                    "Play a song to see lyrics"
+                )
+
+                return
+            }
+
+            val songKey =
+                "$title|$artist"
+
+            /*
+             * Use cached lyrics if this is
+             * the same song.
+             */
+
+            if (
+                songKey == lastSongKey &&
+                lastLyrics.isNotBlank()
+            ) {
+
+                updateWidgets(
+                    context,
+                    manager,
+                    widgetIds,
+                    title,
+                    artist,
+                    lastLyrics
+                )
+
+                return
+            }
+
+            /*
+             * Immediately show a loading message.
+             */
+
+            updateWidgets(
+                context,
+                manager,
+                widgetIds,
+                title,
+                artist,
+                "Loading lyrics..."
+            )
+
+            /*
+             * Don't perform network requests on
+             * Android's widget/main thread.
+             */
+
+            executor.execute {
+
+                val lyrics =
+                    fetchLyrics(
+                        title,
+                        artist
                     )
 
-                views.setTextViewText(
-                    R.id.lyrics_title,
-                    title
-                )
+                lastSongKey =
+                    songKey
 
-                views.setTextViewText(
-                    R.id.lyrics_artist,
-                    artist
-                )
+                lastLyrics =
+                    lyrics
 
-                views.setTextViewText(
-                    R.id.lyrics_text,
-                    "Loading lyrics..."
-                )
-
-                val launchIntent =
-                    Intent(
-                        context,
-                        MainActivity::class.java
-                    ).apply {
-                        flags =
-                            Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }
-
-                val pendingIntent =
-                    PendingIntent.getActivity(
-                        context,
-                        widgetId,
-                        launchIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or
-                        PendingIntent.FLAG_IMMUTABLE
-                    )
-
-                views.setOnClickPendingIntent(
-                    R.id.lyrics_root,
-                    pendingIntent
-                )
-
-                manager.updateAppWidget(
-                    widgetId,
-                    views
+                updateWidgets(
+                    context,
+                    manager,
+                    widgetIds,
+                    title,
+                    artist,
+                    lyrics
                 )
             }
         }
-    }
 
-    override fun onUpdate(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetIds: IntArray
-    ) {
 
-        updateAll(context)
-    }
+        private fun fetchLyrics(
+            title: String,
+            artist: String
+        ): String {
 
-    override fun onEnabled(
-        context: Context
-    ) {
+            return try {
 
-        updateAll(context)
-    }
+                val encodedTitle =
+                    URLEncoder.encode(
+                        title,
+                        "UTF-8"
+                    )
 
-    override fun onDeleted(
-        context: Context,
-        appWidgetIds: IntArray
-    ) {
+                val encodedArtist =
+                    URLEncoder.encode(
+                        artist,
+                        "UTF-8"
+                    )
 
-        // Nothing to clean up.
-    }
+                /*
+                 * LRCLIB's search endpoint doesn't require
+                 * album or duration and returns matching
+                 * lyric records.
+                 */
 
-    override fun onDisabled(
-        context: Context
-    ) {
+                val url =
+                    URL(
+                        "https://lrclib.net/api/search" +
+                        "?track_name=$encodedTitle" +
+                        "&artist_name=$encodedArtist"
+                    )
 
-        // Nothing to clean up.
-    }
-}
+                val connection =
+                    url.openConnection()
+                        as HttpURLConnection
+
+                connection.requestMethod =
+                    "GET"
+
+                connection.connectTimeout =
+                    10000
+
+                connection.readTimeout =
+                    10000
+
+                connection.setRequestProperty(
+                    "User-Agent",
+                    "PulseVisualizer/1.0 " +
+                    "(https://github.com/NaSlaya/Music-Widget)"
+                )
+
+                val responseCode =
+                    connection.responseCode
+
+                if (
+                    responseCode !=
+                    HttpURLConnection.HTTP_OK
+                ) {
+
+                    connection.disconnect()
+
+                    return "Lyrics unavailable"
+                }
+
+                val response =
+                    connection.inputStream
+                        .bufferedReader()
+                        .use {
+                            it.readText()
+                        }
+
+                connection.disconnect()
+
+                val results =
+                    JSONArray(response)
+
+                if (results.length() == 0) {
+                    return "Lyrics not found"
+                }
+
+                /*
+                 * Find the best matching result.
+                 */
+
+                var bestLyrics =
+                    ""
+
+                var bestScore =
+                    -1
+
+                for (i in 0 until results.length()) {
+
+                    val item =
+                        results.getJSONObject(i)
+
+                    val resultTitle =
+                        item.optString(
+                            "trackName"
+                        )
+
+                    val resultArtist =
+                        item.optString(
+                            "artistName"
+                        )
+
+                    val syncedLyrics =
+                        item.optString(
+                            "syncedLyrics"
+                        )
+
+                    val plainLyrics =
+                        item.optString(
+                            "plainLyrics"
+                        )
+
+                    val lyrics =
+                        if (
+                            syncedLyrics.isNotBlank()
+                        ) {
+                            cleanSyncedLyrics(
+                                syncedLyrics
+                            )
+                        } else {
+                            plainLyrics
+                        }
+
+                    if (lyrics.isBlank()) {
+                        continue
+                    }
+
+                    var score =
+                        0
+
+                    if (
+                        resultTitle.equals(
+                            title,
+                            ignoreCase = true
+                        )
+                    ) {
+                        score += 3
+                    }
+
+                    if (
+                        resultArtist.equals(
+                            artist,
+                            ignoreCase = true
+                        )
+                    ) {
+                        score += 3
+                    }
+
+                    if (
+                        syncedLyrics.isNotBlank()
+                    ) {
+                        score += 2
+                    }
+
+                    if (score > bestScore) {
+
+                        bestScore =
+                            score
+
+                        bestLyrics =
+                            lyrics
+                    }
+                }
+
+                if (bestLyrics.isBlank()) {
+                    "Lyrics not found"
+                } else {
+                    bestLyrics
+                }
+
+            } catch (
+                exception: Exception
+            ) {
+
+                "Unable to load lyrics"
+            }
+        }
+
+
+        private fun cleanSyncedLyrics(
+            lyrics: String
+        ): String {
+
+            return lyrics
+                .lines()
+                .map { line ->
+
+                    line.replace(
+                        Regex(
+                            """^\[\d{1,2}:\d{2}(?:\.\d{1,3})?](?:\s*)"""
+                        ),
+                        ""
+                    ).trim()
+                }
+                .filter {
+                    it.isNot
