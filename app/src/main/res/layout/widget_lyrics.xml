@@ -1,59 +1,75 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<FrameLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/lyrics_widget_root"
+    android:id="@+id/lyrics_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="12dp"
-    android:background="@drawable/lyrics_widget_background"
+    android:orientation="vertical"
+    android:padding="18dp"
+    android:background="#17171B"
     android:clickable="true"
     android:focusable="true">
 
-    <ImageView
-        android:id="@+id/lyrics_artwork"
-        android:layout_width="62dp"
-        android:layout_height="62dp"
-        android:layout_gravity="start|center_vertical"
-        android:scaleType="centerCrop"
-        android:contentDescription="Album artwork" />
+    <TextView
+        android:id="@+id/lyrics_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="LYRICS"
+        android:textColor="#AFAFB8"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.12"
+        android:fontFamily="sans" />
 
-    <LinearLayout
+    <TextView
+        android:id="@+id/lyrics_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:layout_marginStart="76dp"
-        android:orientation="vertical">
+        android:layout_marginTop="4dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="Nothing playing"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:fontFamily="sans" />
+
+    <TextView
+        android:id="@+id/lyrics_artist"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textColor="#9B9BA5"
+        android:textSize="13sp"
+        android:fontFamily="sans" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="10dp"
+        android:background="#303038" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
         <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="LYRICS VIDEO"
-            android:textColor="#99FFFFFF"
-            android:textSize="9sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/lyrics_title"
+            android:id="@+id/lyrics_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:text="Nothing playing"
+            android:text="Play a song to see lyrics"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:textSize="15sp"
+            android:lineSpacingExtra="5dp"
+            android:fontFamily="sans" />
 
-        <TextView
-            android:id="@+id/lyrics_artist"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:text="Tap to open lyrics video"
-            android:textColor="#B3FFFFFF"
-            android:textSize="12sp" />
+    </ScrollView>
 
-    </LinearLayout>
-
-</FrameLayout>
+</LinearLayout>
