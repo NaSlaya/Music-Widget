@@ -1,6 +1,5 @@
 package com.pulsevisualizer
 
-import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -40,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -52,8 +52,7 @@ import kotlin.math.sin
 class VisualizerActivity : ComponentActivity() {
 
     companion object {
-        private const val AUDIO_PERMISSION = 9001
-        private const val MEDIA_PROJECTION = 9002
+        private const val MEDIA_PROJECTION_REQUEST = 7001
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,37 +62,19 @@ class VisualizerActivity : ComponentActivity() {
 
         window.decorView.systemUiVisibility =
             View.SYSTEM_UI_FLAG_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+
+        MediaRepository.start(applicationContext)
 
         setContent {
-            PulseTheme {
-                FullScreenVisualizer()
-            }
+            VisualizerScreen()
         }
 
-        requestAudioPermission()
+        requestAudioCapture()
     }
 
-    private fun requestAudioPermission() {
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            checkSelfPermission(
-                Manifest.permission.RECORD_AUDIO
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(
-                arrayOf(
-                    Manifest.permission.RECORD_AUDIO
-                ),
-                AUDIO_PERMISSION
-            )
-        } else {
-            requestProjection()
-        }
-    }
-
-    private fun requestProjection() {
+    private fun requestAudioCapture() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             return
         }
@@ -105,33 +86,11 @@ class VisualizerActivity : ComponentActivity() {
 
         startActivityForResult(
             manager.createScreenCaptureIntent(),
-            MEDIA_PROJECTION
+            MEDIA_PROJECTION_REQUEST
         )
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
-        )
-
-        if (requestCode == AUDIO_PERMISSION) {
-            if (
-                grantResults.isNotEmpty() &&
-                grantResults[0] ==
-                PackageManager.PERMISSION_GRANTED
-            ) {
-                requestProjection()
-            }
-        }
-    }
-
-    @Deprecated("Deprecated Android callback")
+    @Deprecated("Android activity result API")
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -144,8 +103,10 @@ class VisualizerActivity : ComponentActivity() {
         )
 
         if (
-            requestCode == MEDIA_PROJECTION &&
-            resultCode == Activity.RESULT_OK &&
+            requestCode ==
+            MEDIA_PROJECTION_REQUEST &&
+            resultCode ==
+            Activity.RESULT_OK &&
             data != null
         ) {
             AudioCaptureManager.start(
@@ -164,7 +125,7 @@ class VisualizerActivity : ComponentActivity() {
 private const val VISUALIZER_COUNT = 6
 
 @Composable
-fun FullScreenVisualizer() {
+private fun VisualizerScreen() {
 
     val media by
         MediaRepository.media.collectAsState()
@@ -172,7 +133,7 @@ fun FullScreenVisualizer() {
     val bands by
         AudioCaptureManager.bands.collectAsState()
 
-    var visualizer by
+    var selectedVisualizer by
         remember {
             mutableIntStateOf(0)
         }
@@ -182,18 +143,24 @@ fun FullScreenVisualizer() {
             mutableFloatStateOf(0f)
         }
 
-    var drag by
+    var swipeDistance by
         remember {
             mutableFloatStateOf(0f)
         }
 
-    LaunchedEffect(media.playing) {
+    LaunchedEffect(Unit) {
+
         while (true) {
 
-            phase += if (media.playing) {
-                0.045f
-            } else {
-                0.008f
+            phase +=
+                if (media.playing) {
+                    0.045f
+                } else {
+                    0.012f
+                }
+
+            if (phase > 1000f) {
+                phase = 0f
             }
 
             delay(16L)
@@ -206,11 +173,12 @@ fun FullScreenVisualizer() {
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFF241044),
-                            Color(0xFF0B0712),
-                            Color.Black
-                        )
+                        colors =
+                            listOf(
+                                Color(0xFF241047),
+                                Color(0xFF0D0817),
+                                Color.Black
+                            )
                     )
                 )
                 .pointerInput(Unit) {
@@ -218,35 +186,39 @@ fun FullScreenVisualizer() {
                     detectHorizontalDragGestures(
 
                         onDragStart = {
-                            drag = 0f
+                            swipeDistance = 0f
                         },
 
                         onHorizontalDrag = {
                                 _,
                                 amount ->
-                            drag += amount
+                            swipeDistance += amount
                         },
 
                         onDragEnd = {
 
-                            if (drag < -100f) {
+                            if (swipeDistance < -100f) {
 
-                                visualizer =
-                                    (visualizer + 1) %
+                                selectedVisualizer =
+                                    (
+                                        selectedVisualizer + 1
+                                    ) %
                                     VISUALIZER_COUNT
 
-                            } else if (drag > 100f) {
+                            } else if (
+                                swipeDistance > 100f
+                            ) {
 
-                                visualizer =
+                                selectedVisualizer =
                                     (
-                                        visualizer -
-                                        1 +
-                                        VISUALIZER_COUNT
+                                        selectedVisualizer -
+                                            1 +
+                                            VISUALIZER_COUNT
                                     ) %
                                     VISUALIZER_COUNT
                             }
 
-                            drag = 0f
+                            swipeDistance = 0f
                         }
                     )
                 }
@@ -257,16 +229,16 @@ fun FullScreenVisualizer() {
                 Modifier.fillMaxSize()
         ) {
 
-            when (visualizer) {
+            when (selectedVisualizer) {
 
                 0 ->
-                    drawSpectrum(
+                    drawBars(
                         bands,
                         phase
                     )
 
                 1 ->
-                    drawCircleSpectrum(
+                    drawRadial(
                         bands,
                         phase
                     )
@@ -304,33 +276,41 @@ fun FullScreenVisualizer() {
                     .align(
                         Alignment.BottomCenter
                     )
-                    .padding(28.dp),
+                    .padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        bottom = 24.dp
+                    ),
             horizontalAlignment =
                 Alignment.CenterHorizontally
         ) {
 
             Text(
-                text = media.title,
+                text =
+                    media.title.ifBlank {
+                        "Nothing playing"
+                    },
                 color = Color.White,
-                fontSize = 27.sp,
+                fontSize = 25.sp,
                 maxLines = 1
             )
 
             Spacer(
                 modifier =
-                    Modifier.height(5.dp)
+                    Modifier.height(4.dp)
             )
 
             Text(
                 text = media.artist,
-                color = Color(0xFFB7AFC2),
-                fontSize = 16.sp,
+                color =
+                    Color(0xFFAAA0B8),
+                fontSize = 15.sp,
                 maxLines = 1
             )
 
             Spacer(
                 modifier =
-                    Modifier.height(15.dp)
+                    Modifier.height(12.dp)
             )
 
             Row(
@@ -338,14 +318,17 @@ fun FullScreenVisualizer() {
                     Arrangement.spacedBy(7.dp)
             ) {
 
-                repeat(VISUALIZER_COUNT) { index ->
+                repeat(
+                    VISUALIZER_COUNT
+                ) { index ->
 
                     Box(
                         modifier =
                             Modifier
                                 .size(
                                     if (
-                                        index == visualizer
+                                        index ==
+                                        selectedVisualizer
                                     ) {
                                         8.dp
                                     } else {
@@ -357,11 +340,12 @@ fun FullScreenVisualizer() {
                                 )
                                 .background(
                                     if (
-                                        index == visualizer
+                                        index ==
+                                        selectedVisualizer
                                     ) {
                                         Color(0xFFB77CFF)
                                     } else {
-                                        Color(0xFF51485C)
+                                        Color(0xFF50485A)
                                     }
                                 )
                     )
@@ -370,7 +354,7 @@ fun FullScreenVisualizer() {
 
             Spacer(
                 modifier =
-                    Modifier.height(14.dp)
+                    Modifier.height(12.dp)
             )
 
             Row(
@@ -387,27 +371,28 @@ fun FullScreenVisualizer() {
                         MediaRepository.previous()
                     },
                     modifier =
-                        Modifier.size(64.dp)
+                        Modifier.size(58.dp)
                 ) {
 
                     Text(
-                        "⏮",
+                        text = "⏮",
                         color = Color.White,
-                        fontSize = 32.sp
+                        fontSize = 28.sp
                     )
                 }
 
                 Box(
                     modifier =
                         Modifier
-                            .size(82.dp)
+                            .size(78.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
-                                    colors = listOf(
-                                        Color(0xFFAA7CFF),
-                                        Color(0xFF586DFF)
-                                    )
+                                    colors =
+                                        listOf(
+                                            Color(0xFFAA7CFF),
+                                            Color(0xFF596CFF)
+                                        )
                                 )
                             ),
                     contentAlignment =
@@ -422,13 +407,14 @@ fun FullScreenVisualizer() {
                     ) {
 
                         Text(
-                            if (media.playing) {
-                                "Ⅱ"
-                            } else {
-                                "▶"
-                            },
+                            text =
+                                if (media.playing) {
+                                    "Ⅱ"
+                                } else {
+                                    "▶"
+                                },
                             color = Color.White,
-                            fontSize = 30.sp
+                            fontSize = 29.sp
                         )
                     }
                 }
@@ -438,111 +424,130 @@ fun FullScreenVisualizer() {
                         MediaRepository.next()
                     },
                     modifier =
-                        Modifier.size(64.dp)
+                        Modifier.size(58.dp)
                 ) {
 
                     Text(
-                        "⏭",
+                        text = "⏭",
                         color = Color.White,
-                        fontSize = 32.sp
+                        fontSize = 28.sp
                     )
                 }
             }
 
             Spacer(
                 modifier =
-                    Modifier.height(12.dp)
+                    Modifier.height(8.dp)
             )
 
             Text(
-                text = "SWIPE LEFT / RIGHT",
-                color = Color(0xFF756A84),
-                fontSize = 9.sp,
-                letterSpacing = 1.8.sp
+                text = "SWIPE LEFT / RIGHT TO CHANGE",
+                color =
+                    Color(0xFF6F647A),
+                fontSize = 8.sp,
+                letterSpacing = 1.5.sp
             )
         }
     }
 }
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSpectrum(
+
+private fun DrawScope.drawBars(
     bands: FloatArray,
     phase: Float
 ) {
 
-    val count = minOf(bands.size, 48)
+    if (bands.isEmpty()) return
 
-    if (count <= 0) return
+    val count =
+        minOf(
+            bands.size,
+            56
+        )
 
     val spacing =
-        size.width / count.toFloat()
+        size.width /
+            count.toFloat()
 
     val centerY =
-        size.height * 0.43f
+        size.height * 0.42f
 
     for (i in 0 until count) {
 
         val value =
-            bands[i].coerceIn(0f, 1f)
-
-        val height =
-            size.height *
-                (
-                    0.025f +
-                    value * 0.42f
+            bands[i]
+                .coerceIn(
+                    0f,
+                    1f
                 )
 
         val x =
             spacing * i +
-            spacing / 2f
+                spacing / 2f
 
-        val width =
-            spacing * 0.62f
+        val barWidth =
+            spacing * 0.58f
 
-        val color =
-            Color(
-                red =
-                    0.42f +
-                    i.toFloat() /
-                    count *
-                    0.35f,
+        val barHeight =
+            size.height *
+                (
+                    0.015f +
+                    value * 0.37f
+                )
 
-                green =
-                    0.25f +
-                    value * 0.25f,
-
-                blue = 1f
-            )
+        val pulse =
+            1f +
+                sin(
+                    phase * 2f +
+                        i * 0.18f
+                ) * 0.05f
 
         drawRoundRect(
             color =
-                color.copy(
+                Color(
+                    red =
+                        0.38f +
+                            i.toFloat() /
+                            count *
+                            0.42f,
+
+                    green =
+                        0.22f +
+                            value * 0.28f,
+
+                    blue = 1f,
+
                     alpha =
                         0.55f +
-                        value * 0.45f
+                            value * 0.45f
                 ),
 
             topLeft =
                 androidx.compose.ui.geometry.Offset(
-                    x - width / 2f,
-                    centerY - height
+                    x -
+                        barWidth / 2f,
+                    centerY -
+                        barHeight *
+                        pulse
                 ),
 
             size =
                 androidx.compose.ui.geometry.Size(
-                    width,
-                    height * 2f
+                    barWidth,
+                    barHeight *
+                        pulse *
+                        2f
                 ),
 
             cornerRadius =
                 androidx.compose.ui.geometry.CornerRadius(
-                    width / 2f,
-                    width / 2f
+                    barWidth / 2f,
+                    barWidth / 2f
                 )
         )
     }
 }
 
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCircleSpectrum(
+private fun DrawScope.drawRadial(
     bands: FloatArray,
     phase: Float
 ) {
@@ -553,24 +558,27 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCircleSpectrum(
         size.width / 2f
 
     val cy =
-        size.height * 0.43f
+        size.height * 0.40f
 
-    val radius =
-        size.minDimension * 0.22f
+    val baseRadius =
+        size.minDimension *
+            0.19f
 
-    val points = 160
+    val points = 180
 
-    val path = Path()
+    val path =
+        Path()
 
     for (i in 0..points) {
 
         val t =
-            i.toFloat() / points
+            i.toFloat() /
+                points.toFloat()
 
         val index =
             (
                 t *
-                (bands.size - 1)
+                    (bands.size - 1)
             )
                 .toInt()
                 .coerceIn(
@@ -578,28 +586,30 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCircleSpectrum(
                     bands.lastIndex
                 )
 
-        val audio =
+        val value =
             bands[index]
-
-        val r =
-            radius *
-            (
-                1f +
-                audio * 0.75f
-            )
 
         val angle =
             t *
-            PI.toFloat() *
-            2f
+                PI.toFloat() *
+                2f
+
+        val radius =
+            baseRadius *
+                (
+                    1f +
+                        value * 0.75f
+                )
 
         val x =
             cx +
-            cos(angle) * r
+                cos(angle) *
+                radius
 
         val y =
             cy +
-            sin(angle) * r
+                sin(angle) *
+                radius
 
         if (i == 0) {
             path.moveTo(x, y)
@@ -612,18 +622,23 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCircleSpectrum(
 
     drawPath(
         path = path,
-        color = Color(0xFFB278FF),
-        style = Stroke(5f)
+        color =
+            Color(0xFFB77CFF),
+        style =
+            Stroke(
+                width = 5f
+            )
     )
 
     drawCircle(
         color =
-            Color(0xFF9C6CFF)
-                .copy(alpha = 0.10f),
-
+            Color(0xFF9D6CFF)
+                .copy(
+                    alpha = 0.09f
+                ),
         radius =
-            radius * 0.7f,
-
+            baseRadius *
+                0.75f,
         center =
             androidx.compose.ui.geometry.Offset(
                 cx,
@@ -631,31 +646,31 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCircleSpectrum(
             )
     )
 }
-
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWave(
+private fun DrawScope.drawWave(
     bands: FloatArray,
     phase: Float
 ) {
 
     if (bands.isEmpty()) return
 
-    val path = Path()
-
     val centerY =
-        size.height * 0.43f
+        size.height * 0.40f
 
-    val points = 180
+    val path =
+        Path()
+
+    val points = 220
 
     for (i in 0..points) {
 
         val t =
-            i.toFloat() / points
+            i.toFloat() /
+                points.toFloat()
 
         val index =
             (
                 t *
-                (bands.size - 1)
+                    (bands.size - 1)
             )
                 .toInt()
                 .coerceIn(
@@ -663,30 +678,46 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWave(
                     bands.lastIndex
                 )
 
-        val audio =
+        val value =
             bands[index]
+
+        val bass =
+            bands[
+                minOf(
+                    index,
+                    minOf(
+                        7,
+                        bands.lastIndex
+                    )
+                )
+            ]
+
+        val frequency =
+            8f +
+                value * 5f
 
         val wave =
             sin(
                 t *
-                PI.toFloat() *
-                12f +
-                phase * 3f
+                    PI.toFloat() *
+                    frequency +
+                    phase * 2.5f
             )
 
         val amplitude =
             size.height *
-            (
-                0.025f +
-                audio * 0.38f
-            )
+                (
+                    0.015f +
+                        value * 0.30f +
+                        bass * 0.12f
+                )
 
         val x =
             t * size.width
 
         val y =
             centerY +
-            wave * amplitude
+                wave * amplitude
 
         if (i == 0) {
             path.moveTo(x, y)
@@ -697,22 +728,28 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawWave(
 
     drawPath(
         path = path,
-        color = Color(0xFFB278FF),
-        style = Stroke(6f)
+        color =
+            Color.White.copy(
+                alpha = 0.10f
+            ),
+        style =
+            Stroke(
+                width = 18f
+            )
     )
 
     drawPath(
         path = path,
         color =
-            Color.White.copy(
-                alpha = 0.14f
-            ),
-        style = Stroke(15f)
+            Color(0xFFB77CFF),
+        style =
+            Stroke(
+                width = 5f
+            )
     )
 }
 
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticles(
+private fun DrawScope.drawParticles(
     bands: FloatArray,
     phase: Float
 ) {
@@ -723,20 +760,23 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticles(
         size.width / 2f
 
     val cy =
-        size.height * 0.43f
+        size.height * 0.40f
 
     val maxRadius =
         size.minDimension * 0.40f
 
-    for (i in 0 until 150) {
+    val count = 180
 
-        val normalized =
-            i / 150f
+    for (i in 0 until count) {
+
+        val t =
+            i.toFloat() /
+                count.toFloat()
 
         val index =
             (
-                normalized *
-                (bands.size - 1)
+                t *
+                    (bands.size - 1)
             )
                 .toInt()
                 .coerceIn(
@@ -744,57 +784,60 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticles(
                     bands.lastIndex
                 )
 
-        val audio =
+        val value =
             bands[index]
 
         val angle =
-            normalized *
-            PI.toFloat() *
-            2f +
-            phase *
-            (
-                0.2f +
-                normalized
-            )
+            t *
+                PI.toFloat() *
+                2f +
+                phase *
+                (
+                    0.15f +
+                        t
+                )
 
         val radius =
             maxRadius *
-            (
-                0.18f +
-                normalized * 0.72f +
-                audio * 0.35f
-            )
+                (
+                    0.15f +
+                        t * 0.80f +
+                        value * 0.32f
+                )
 
         val x =
             cx +
-            cos(angle) * radius
+                cos(angle) *
+                radius
 
         val y =
             cy +
-            sin(angle) * radius
+                sin(angle) *
+                radius
+
+        val particleSize =
+            1.2f +
+                value * 6f
 
         drawCircle(
             color =
                 Color(
                     red =
-                        0.55f +
-                        normalized * 0.2f,
+                        0.45f +
+                            t * 0.40f,
 
                     green =
-                        0.25f +
-                        audio * 0.4f,
+                        0.18f +
+                            value * 0.45f,
 
                     blue = 1f,
 
                     alpha =
                         0.25f +
-                        audio * 0.75f
+                            value * 0.75f
                 ),
-
             radius =
-                1.5f +
-                audio * 7f,
-
+                particleSize,
             center =
                 androidx.compose.ui.geometry.Offset(
                     x,
@@ -804,8 +847,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawParticles(
     }
 }
 
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
+private fun DrawScope.drawOrb(
     bands: FloatArray,
     phase: Float
 ) {
@@ -816,7 +858,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
         size.width / 2f
 
     val cy =
-        size.height * 0.43f
+        size.height * 0.40f
 
     val average =
         bands
@@ -827,13 +869,17 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
                 1f
             )
 
+    val bassCount =
+        minOf(
+            10,
+            bands.size
+        )
+
     val bass =
         bands
-            .take(
-                minOf(
-                    12,
-                    bands.size
-                )
+            .copyOfRange(
+                0,
+                bassCount
             )
             .average()
             .toFloat()
@@ -844,22 +890,37 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
 
     val radius =
         size.minDimension *
-        (
-            0.13f +
-            average * 0.13f +
-            bass * 0.08f
-        )
+            (
+                0.11f +
+                    average * 0.08f +
+                    bass * 0.12f
+            )
 
     drawCircle(
         color =
-            Color(0xFF8B5CF6)
+            Color(0xFF7C4DFF)
                 .copy(
-                    alpha = 0.07f
+                    alpha =
+                        0.08f +
+                            bass * 0.15f
                 ),
-
         radius =
-            radius * 2.5f,
+            radius * 3.1f,
+        center =
+            androidx.compose.ui.geometry.Offset(
+                cx,
+                cy
+            )
+    )
 
+    drawCircle(
+        color =
+            Color(0xFF9D6CFF)
+                .copy(
+                    alpha = 0.15f
+                ),
+        radius =
+            radius * 1.8f,
         center =
             androidx.compose.ui.geometry.Offset(
                 cx,
@@ -873,14 +934,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
                 colors =
                     listOf(
                         Color.White,
-                        Color(0xFFB77CFF),
-                        Color(0xFF6840FF),
-                        Color(0xFF180B3A)
+                        Color(0xFFD0A8FF),
+                        Color(0xFF713BFF),
+                        Color(0xFF16082F)
                     )
             ),
-
         radius = radius,
-
         center =
             androidx.compose.ui.geometry.Offset(
                 cx,
@@ -888,12 +947,12 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
             )
     )
 
-    for (ring in 0 until 4) {
+    for (ring in 0 until 5) {
 
         val start =
             ring *
-            bands.size /
-            4
+                bands.size /
+                5
 
         val end =
             minOf(
@@ -901,41 +960,41 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
                 (
                     ring + 1
                 ) *
-                bands.size /
-                4
+                    bands.size /
+                    5
             )
 
+        if (end <= start) continue
+
         val energy =
-            if (end > start) {
-
-                bands
-                    .copyOfRange(
-                        start,
-                        end
-                    )
-                    .average()
-                    .toFloat()
-
-            } else {
-                0f
-            }
+            bands
+                .copyOfRange(
+                    start,
+                    end
+                )
+                .average()
+                .toFloat()
+                .coerceIn(
+                    0f,
+                    1f
+                )
 
         drawCircle(
             color =
                 Color(0xFFB77CFF)
                     .copy(
                         alpha =
-                            0.20f +
-                            energy * 0.65f
+                            0.16f +
+                                energy * 0.60f
                     ),
 
             radius =
                 radius *
-                (
-                    1.35f +
-                    ring * 0.24f +
-                    energy * 0.5f
-                ),
+                    (
+                        1.25f +
+                            ring * 0.22f +
+                            energy * 0.45f
+                    ),
 
             center =
                 androidx.compose.ui.geometry.Offset(
@@ -945,13 +1004,15 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawOrb(
 
             style =
                 Stroke(
-                    3f +
-                    energy * 5f
+                    width =
+                        2f +
+                            energy * 5f
                 )
         )
     }
 }
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMirror(
+
+private fun DrawScope.drawMirror(
     bands: FloatArray,
     phase: Float
 ) {
@@ -965,10 +1026,11 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMirror(
         )
 
     val centerY =
-        size.height * 0.43f
+        size.height * 0.40f
 
     val spacing =
-        size.width / count.toFloat()
+        size.width /
+            count.toFloat()
 
     for (i in 0 until count) {
 
@@ -979,46 +1041,37 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMirror(
                     1f
                 )
 
-        val barHeight =
+        val height =
             size.height *
-            (
-                0.02f +
-                value * 0.34f
-            )
+                (
+                    0.015f +
+                        value * 0.30f
+                )
 
         val x =
-            i *
-            spacing +
-            spacing / 2f
+            spacing * i +
+                spacing / 2f
 
-        val barWidth =
-            spacing * 0.55f
-
-        val top =
-            centerY -
-            barHeight
-
-        val bottom =
-            centerY +
-            barHeight
+        val width =
+            spacing * 0.58f
 
         val color =
             Color(
                 red =
                     0.35f +
-                    value * 0.35f,
+                        value * 0.35f,
 
                 green =
-                    0.20f +
-                    i.toFloat() /
-                    count *
-                    0.25f,
+                    0.18f +
+                        i.toFloat() /
+                        count *
+                        0.35f,
 
                 blue = 1f,
 
                 alpha =
-                    0.75f +
-                    value * 0.25f
+                    0.70f +
+                        value * 0.30f
             )
 
         drawRoundRect(
@@ -1027,46 +1080,47 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMirror(
             topLeft =
                 androidx.compose.ui.geometry.Offset(
                     x -
-                        barWidth / 2f,
-                    top
+                        width / 2f,
+                    centerY -
+                        height
                 ),
 
             size =
                 androidx.compose.ui.geometry.Size(
-                    barWidth,
-                    barHeight
+                    width,
+                    height
                 ),
 
             cornerRadius =
                 androidx.compose.ui.geometry.CornerRadius(
-                    barWidth / 2f,
-                    barWidth / 2f
+                    width / 2f,
+                    width / 2f
                 )
         )
 
         drawRoundRect(
             color =
                 color.copy(
-                    alpha = 0.45f
+                    alpha = 0.42f
                 ),
 
             topLeft =
                 androidx.compose.ui.geometry.Offset(
                     x -
-                        barWidth / 2f,
+                        width / 2f,
                     centerY
                 ),
 
             size =
                 androidx.compose.ui.geometry.Size(
-                    barWidth,
-                    barHeight
+                    width,
+                    height
                 ),
 
             cornerRadius =
                 androidx.compose.ui.geometry.CornerRadius(
-                    barWidth / 2f,
-                    barWidth / 2f
+                    width / 2f,
+                    width / 2f
                 )
         )
     }
@@ -1074,7 +1128,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMirror(
     drawLine(
         color =
             Color.White.copy(
-                alpha = 0.12f
+                alpha = 0.10f
             ),
 
         start =
@@ -1089,123 +1143,6 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMirror(
                 centerY
             ),
 
-        strokeWidth = 2f
+        strokeWidth = 1.5f
     )
-}
-
-
-/*
- * Small application theme.
- *
- * Keeping this here means the visualizer does not depend
- * on a separate theme file being present.
- */
-@Composable
-private fun PulseTheme(
-    content: @Composable () -> Unit
-) {
-
-    androidx.compose.material3.MaterialTheme(
-        colorScheme =
-            androidx.compose.material3.darkColorScheme(
-                background = Color.Black,
-                surface = Color.Black,
-                primary = Color(0xFFB77CFF)
-            )
-    ) {
-        content()
-    }
-}
-
-
-/*
- * Application context holder.
- *
- * AudioCaptureManager can use this when it needs
- * application-level Android context.
- */
-object AppContextHolder {
-
-    lateinit var context:
-        android.content.Context
-}
-
-
-/*
- * MediaRepository
- *
- * This is deliberately kept lightweight.
- *
- * Your existing MediaInfo object remains the source
- * of the actual song information.
- */
-object MediaRepository {
-
-    private val _media =
-        kotlinx.coroutines.flow.MutableStateFlow(
-            MediaInfo()
-        )
-
-    val media =
-        _media
-
-    fun update(
-        info: MediaInfo
-    ) {
-        _media.value = info
-    }
-
-    fun next() {
-
-        sendMediaButton(
-            android.view.KeyEvent.KEYCODE_MEDIA_NEXT
-        )
-    }
-
-    fun previous() {
-
-        sendMediaButton(
-            android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS
-        )
-    }
-
-    fun togglePlayPause() {
-
-        sendMediaButton(
-            android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
-        )
-    }
-
-    private fun sendMediaButton(
-        keyCode: Int
-    ) {
-
-        val context =
-            AppContextHolder.context
-
-        val audioManager =
-            context.getSystemService(
-                android.content.Context.AUDIO_SERVICE
-            ) as android.media.AudioManager
-
-        val down =
-            android.view.KeyEvent(
-                android.view.KeyEvent.ACTION_DOWN,
-                keyCode
-            )
-
-        val up =
-            android.view.KeyEvent(
-                android.view.KeyEvent.ACTION_UP,
-                keyCode
-            )
-
-        audioManager.dispatchMediaKeyEvent(
-            down
-        )
-
-        audioManager.dispatchMediaKeyEvent(
-            up
-        )
-    }
 }
