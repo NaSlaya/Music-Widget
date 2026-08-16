@@ -6,57 +6,71 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.widget.RemoteViews
 import java.util.concurrent.Executors
 
-class LyricsWidgetProvider :
-    AppWidgetProvider() {
+class LyricsWidgetProvider : AppWidgetProvider() {
 
     companion object {
 
         private val executor =
             Executors.newSingleThreadExecutor()
 
-        private var context:
-            Context? = null
+        private val handler =
+            Handler(Looper.getMainLooper())
 
-        private var songKey =
-            ""
+        private var appContext: Context? = null
 
-        private var document:
-            LyricsDocument? = null
+        private var currentSongKey = ""
 
-        private var lastDisplayed =
-            ""
+        private var document =
+            LyricsDocument(
+                emptyList()
+            )
 
-        private const val UPDATE_MS =
-            100L
+        private var loading = false
 
-        private const val SILENCE_GAP_MS =
-            2500L
+        private var lastDisplayedIndex =
+            Int.MIN_VALUE
+
+        private const val UPDATE_INTERVAL = 100L
+
+        private const val SILENCE_GAP_MS = 2500L
+
+        private val positionUpdater =
+            object : Runnable {
+
+                override fun run() {
+
+                    try {
+                        updateCurrentLyric()
+                    } catch (_: Exception) {
+                    }
+
+                    handler.postDelayed(
+                        this,
+                        UPDATE_INTERVAL
+                    )
+                }
+            }
 
         fun updateAll(
             context: Context
         ) {
 
-            val appContext =
+            appContext =
                 context.applicationContext
-
-            this.context =
-                appContext
-
-            MediaRepository.start(
-                appContext
-            )
 
             val manager =
                 AppWidgetManager.getInstance(
-                    appContext
+                    context
                 )
 
             val component =
                 ComponentName(
-                    appContext,
+                    context,
                     LyricsWidgetProvider::class.java
                 )
 
@@ -65,19 +79,20 @@ class LyricsWidgetProvider :
                     component
                 )
 
-            if (
-                ids.isEmpty()
-            ) {
+            if (ids.isEmpty()) {
+                stopPositionUpdates()
                 return
             }
+
+            MediaRepository.start(
+                context
+            )
 
             val media =
                 MediaRepository.media.value
 
             val title =
-                cleanTitle(
-                    media.title
-                )
+                media.title.trim()
 
             val artist =
                 media.artist.trim()
@@ -87,130 +102,204 @@ class LyricsWidgetProvider :
                 title.equals(
                     "Nothing playing",
                     ignoreCase = true
+                ) ||
+                title.equals(
+                    "Unknown title",
+                    ignoreCase = true
                 )
             ) {
 
-                songKey =
-                    ""
+                currentSongKey = ""
 
                 document =
-                    null
+                    LyricsDocument(
+                        emptyList()
+                    )
 
-                lastDisplayed =
-                    ""
+                lastDisplayedIndex =
+                    Int.MIN_VALUE
 
-                updateText(
-                    appContext,
+                updateWidgetText(
+                    context,
                     ""
                 )
+
+                stopPositionUpdates()
 
                 return
             }
 
-            val newKey =
+            val cleanedTitle =
+                cleanTitle(
+                    title
+                )
+
+            val songKey =
                 (
-                    title +
-                    "|" +
-                    artist
+                    cleanedTitle +
+                        "|" +
+                        artist
                 ).lowercase()
 
             if (
-                newKey != songKey
+                songKey != currentSongKey
             ) {
 
-                songKey =
-                    newKey
+                currentSongKey =
+                    songKey
 
                 document =
-                    null
+                    LyricsDocument(
+                        emptyList()
+                    )
 
-                lastDisplayed =
-                    ""
+                lastDisplayedIndex =
+                    Int.MIN_VALUE
 
-                updateText(
-                    appContext,
+                updateWidgetText(
+                    context,
                     ""
                 )
 
-                loadLyrics(
-                    appContext,
-                    title,
+                fetchLyrics(
+                    context,
+                    cleanedTitle,
                     artist,
-                    newKey
+                    songKey
                 )
             }
 
-            updateCurrentLine(
-                appContext
+            startPositionUpdates(
+                context
             )
         }
 
-        private fun loadLyrics(
+        private fun fetchLyrics(
             context: Context,
             title: String,
             artist: String,
-            expectedKey: String
+            songKey: String
         ) {
+
+            if (loading) {
+                return
+            }
+
+            loading = true
 
             executor.execute {
 
                 val result =
-                    LyricsRepository.getLyrics(
-                        context,
-                        title,
-                        artist
+                    try {
+                        LyricsRepository.getLyrics(
+                            context.applicationContext,
+                            title,
+                            artist
+                        )
+                    } catch (_: Exception) {
+                        LyricsDocument(
+                            emptyList(),
+                            source = "none",
+                            confidence = 0f
+                        )
+                    }
+
+                handler.post {
+
+                    loading = false
+
+                    val media =
+                        MediaRepository
+                            .media
+                            .value
+
+                    val currentTitle =
+                        cleanTitle(
+                            media.title
+                        )
+
+                    val currentArtist =
+                        media.artist.trim()
+
+                    val currentKey =
+                        (
+                            currentTitle +
+                                "|" +
+                                currentArtist
+                        ).lowercase()
+
+                    if (
+                        currentKey !=
+                        songKey ||
+                        currentKey !=
+                        currentSongKey
+                    ) {
+                        return@post
+                    }
+
+                    document =
+                        result
+
+                    lastDisplayedIndex =
+                        Int.MIN_VALUE
+
+                    updateCurrentLyric(
+                        force = true
                     )
-
-                val current =
-                    MediaRepository.media.value
-
-                val currentTitle =
-                    cleanTitle(
-                        current.title
-                    )
-
-                val currentKey =
-                    (
-                        currentTitle +
-                        "|" +
-                        current.artist.trim()
-                    ).lowercase()
-
-                if (
-                    currentKey !=
-                    expectedKey
-                ) {
-                    return@execute
                 }
-
-                document =
-                    result
-
-                updateCurrentLine(
-                    context
-                )
             }
         }
 
-        private fun updateCurrentLine(
+        private fun startPositionUpdates(
             context: Context
         ) {
 
-            val currentDocument =
-                document
+            appContext =
+                context.applicationContext
+
+            handler.removeCallbacks(
+                positionUpdater
+            )
+
+            handler.post(
+                positionUpdater
+            )
+        }
+
+        private fun stopPositionUpdates() {
+
+            handler.removeCallbacks(
+                positionUpdater
+            )
+        }
+
+        private fun updateCurrentLyric(
+            force: Boolean = false
+        ) {
+
+            val context =
+                appContext
                     ?: return
 
             val lines =
-                currentDocument.lines
+                document.lines
 
-            if (
-                lines.isEmpty()
-            ) {
+            if (lines.isEmpty()) {
 
-                updateText(
-                    context,
-                    ""
-                )
+                if (
+                    force ||
+                    lastDisplayedIndex !=
+                    -2
+                ) {
+
+                    lastDisplayedIndex =
+                        -2
+
+                    updateWidgetText(
+                        context,
+                        ""
+                    )
+                }
 
                 return
             }
@@ -218,23 +307,27 @@ class LyricsWidgetProvider :
             val position =
                 MediaRepository
                     .getCurrentPositionMs()
+                    .coerceAtLeast(0L)
 
-            val first =
-                lines.first()
-
+            /*
+             * Blank before the first lyric.
+             * This handles instrumental intros.
+             */
             if (
                 position <
-                first.timeMs
+                lines.first().timeMs
             ) {
 
                 if (
-                    lastDisplayed != ""
+                    force ||
+                    lastDisplayedIndex !=
+                    -1
                 ) {
 
-                    lastDisplayed =
-                        ""
+                    lastDisplayedIndex =
+                        -1
 
-                    updateText(
+                    updateWidgetText(
                         context,
                         ""
                     )
@@ -243,20 +336,20 @@ class LyricsWidgetProvider :
                 return
             }
 
-            var index =
+            var currentIndex =
                 -1
 
             for (
-                i in lines.indices
+                index in lines.indices
             ) {
 
                 if (
-                    lines[i].timeMs <=
+                    lines[index].timeMs <=
                     position
                 ) {
 
-                    index =
-                        i
+                    currentIndex =
+                        index
 
                 } else {
 
@@ -265,68 +358,139 @@ class LyricsWidgetProvider :
             }
 
             if (
-                index < 0
+                currentIndex < 0
             ) {
+
                 return
             }
 
-            val line =
-                lines[index]
+            val current =
+                lines[currentIndex]
 
+            /*
+             * Do not leave a lyric displayed forever
+             * after its actual end time.
+             */
             if (
-                position >=
-                line.endMs
+                position >= current.endMs
+            ) {
+
+                val nextIndex =
+                    currentIndex + 1
+
+                if (
+                    nextIndex >=
+                    lines.size
+                ) {
+
+                    if (
+                        lastDisplayedIndex !=
+                        -2
+                    ) {
+
+                        lastDisplayedIndex =
+                            -2
+
+                        updateWidgetText(
+                            context,
+                            ""
+                        )
+                    }
+
+                    return
+                }
+
+                val next =
+                    lines[nextIndex]
+
+                val gap =
+                    next.timeMs -
+                        position
+
+                if (
+                    gap >
+                    SILENCE_GAP_MS
+                ) {
+
+                    if (
+                        lastDisplayedIndex !=
+                        -2
+                    ) {
+
+                        lastDisplayedIndex =
+                            -2
+
+                        updateWidgetText(
+                            context,
+                            ""
+                        )
+                    }
+
+                    return
+                }
+
+                if (
+                    position <
+                    next.timeMs
+                ) {
+
+                    if (
+                        lastDisplayedIndex !=
+                        -2
+                    ) {
+
+                        lastDisplayedIndex =
+                            -2
+
+                        updateWidgetText(
+                            context,
+                            ""
+                        )
+                    }
+
+                    return
+                }
+            }
+                        if (
+                current.text.isBlank()
             ) {
 
                 if (
-                    index <
-                    lines.lastIndex
+                    lastDisplayedIndex !=
+                    -2
                 ) {
 
-                    val next =
-                        lines[index + 1]
+                    lastDisplayedIndex =
+                        -2
 
-                    if (
-                        next.timeMs -
-                        position >
-                        SILENCE_GAP_MS
-                    ) {
-
-                        if (
-                            lastDisplayed != ""
-                        ) {
-
-                            lastDisplayed =
-                                ""
-
-                            updateText(
-                                context,
-                                ""
-                            )
-                        }
-
-                        return
-                    }
+                    updateWidgetText(
+                        context,
+                        ""
+                    )
                 }
-            }
 
-            if (
-                line.text ==
-                lastDisplayed
-            ) {
                 return
             }
 
-            lastDisplayed =
-                line.text
+            if (
+                !force &&
+                currentIndex ==
+                lastDisplayedIndex
+            ) {
 
-            updateText(
+                return
+            }
+
+            lastDisplayedIndex =
+                currentIndex
+
+            updateWidgetText(
                 context,
-                line.text
+                current.text
             )
         }
 
-        private fun updateText(
+        private fun updateWidgetText(
             context: Context,
             text: String
         ) {
@@ -347,9 +511,8 @@ class LyricsWidgetProvider :
                     component
                 )
 
-            if (
-                ids.isEmpty()
-            ) {
+            if (ids.isEmpty()) {
+                stopPositionUpdates()
                 return
             }
 
@@ -380,12 +543,16 @@ class LyricsWidgetProvider :
                 Intent(
                     context,
                     MainActivity::class.java
-                )
+                ).apply {
+                    flags =
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
 
             val pendingIntent =
                 PendingIntent.getActivity(
                     context,
-                    8001,
+                    9002,
                     intent,
                     PendingIntent.FLAG_UPDATE_CURRENT or
                         PendingIntent.FLAG_IMMUTABLE
@@ -408,11 +575,11 @@ class LyricsWidgetProvider :
         }
 
         private fun cleanTitle(
-            title: String
+            value: String
         ): String {
 
             var result =
-                title.trim()
+                value.trim()
 
             val removable =
                 listOf(
@@ -428,10 +595,18 @@ class LyricsWidgetProvider :
                     "[Official Audio]",
                     "(Official Video)",
                     "[Official Video]",
+                    "(Official Music Video)",
+                    "[Official Music Video]",
                     "(Audio)",
                     "[Audio]",
                     "(Visualizer)",
-                    "[Visualizer]"
+                    "[Visualizer]",
+                    "(4K)",
+                    "[4K]",
+                    "(HD)",
+                    "[HD]",
+                    "(Remastered)",
+                    "[Remastered]"
                 )
 
             for (
@@ -449,6 +624,13 @@ class LyricsWidgetProvider :
             return result
                 .replace(
                     Regex(
+                        """\s*[-|]\s*(official|lyrics?|lyric video|audio|visualizer).*$"""
+                    ),
+                    "",
+                    ignoreCase = true
+                )
+                .replace(
+                    Regex(
                         "\\s{2,}"
                     ),
                     " "
@@ -459,8 +641,8 @@ class LyricsWidgetProvider :
 
     override fun onUpdate(
         context: Context,
-        manager: AppWidgetManager,
-        ids: IntArray
+        appWidgetManager: AppWidgetManager,
+        appWidgetIds: IntArray
     ) {
 
         updateAll(
@@ -477,17 +659,40 @@ class LyricsWidgetProvider :
         )
     }
 
+    override fun onDeleted(
+        context: Context,
+        appWidgetIds: IntArray
+    ) {
+
+        if (
+            appWidgetIds.isEmpty()
+        ) {
+
+            stopPositionUpdates()
+        }
+    }
+
     override fun onDisabled(
         context: Context
     ) {
 
+        stopPositionUpdates()
+
+        currentSongKey =
+            ""
+
         document =
+            LyricsDocument(
+                emptyList()
+            )
+
+        lastDisplayedIndex =
+            Int.MIN_VALUE
+
+        loading =
+            false
+
+        appContext =
             null
-
-        songKey =
-            ""
-
-        lastDisplayed =
-            ""
     }
 }
