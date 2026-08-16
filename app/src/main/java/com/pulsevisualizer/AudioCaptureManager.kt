@@ -6,16 +6,15 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
-import android.media.MediaRecorder
-import android.media.projection.MediaProjection
+import android.media.MediaProjection
 import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sqrt
@@ -23,13 +22,18 @@ import kotlin.math.sqrt
 object AudioCaptureManager {
 
     private const val BAND_COUNT = 64
-    private const val FFT_SIZE = 2048
+
     private const val SAMPLE_RATE = 44100
 
-    private val _bands =
-        MutableStateFlow(FloatArray(BAND_COUNT))
+    private const val BUFFER_SIZE = 2048
 
-    val bands: StateFlow<FloatArray> = _bands
+    private val _bands =
+        MutableStateFlow(
+            FloatArray(BAND_COUNT)
+        )
+
+    val bands: StateFlow<FloatArray> =
+        _bands
 
     private val _isCapturing =
         MutableStateFlow(false)
@@ -38,16 +42,19 @@ object AudioCaptureManager {
         _isCapturing
 
     private var audioRecord: AudioRecord? = null
+
+    private var mediaProjection: MediaProjection? =
+        null
+
     private var captureJob: Job? = null
-    private var mediaProjection: MediaProjection? = null
 
-    private var smoothedBands =
-        FloatArray(BAND_COUNT)
+    private var running = false
 
-    private var lastBass = 0f
-
-    fun initialize(context: Context) {
-        // Kept for compatibility with the rest of the project.
+    fun initialize(
+        context: Context
+    ) {
+        // Playback capture is started after the
+        // user grants MediaProjection permission.
     }
 
     fun start(
@@ -55,25 +62,11 @@ object AudioCaptureManager {
         data: Intent
     ): Boolean {
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT < 29) {
             return false
         }
 
         stop()
-
-        return try {
-
-            val projectionManager =
-                android.media.projection.MediaProjectionManagerHolder
-        } catch (_: Throwable) {
-            startInternal(resultCode, data)
-        }
-    }
-
-    private fun startInternal(
-        resultCode: Int,
-        data: Intent
-    ): Boolean {
 
         return try {
 
@@ -96,7 +89,7 @@ object AudioCaptureManager {
                 mediaProjection
                     ?: return false
 
-            val audioConfig =
+            val playbackConfig =
                 AudioPlaybackCaptureConfiguration
                     .Builder(projection)
                     .addMatchingUsage(
@@ -105,507 +98,458 @@ object AudioCaptureManager {
                     .addMatchingUsage(
                         AudioAttributes.USAGE_GAME
                     )
+                    .addMatchingUsage(
+                        AudioAttributes.USAGE_UNKNOWN
+                    )
                     .build()
 
-            val audioFormat =
+            val format =
                 AudioFormat.Builder()
                     .setEncoding(
                         AudioFormat.ENCODING_PCM_16BIT
                     )
-                    .setSampleRate(SAMPLE_RATE)
+                    .setSampleRate(
+                        SAMPLE_RATE
+                    )
                     .setChannelMask(
                         AudioFormat.CHANNEL_IN_MONO
                     )
                     .build()
 
-            val minBuffer =
+            val minimumBuffer =
                 AudioRecord.getMinBufferSize(
                     SAMPLE_RATE,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT
                 )
 
-            if (minBuffer <= 0) {
-                return false
-            }
-
             val bufferSize =
                 maxOf(
-                    minBuffer * 4,
-                    FFT_SIZE * 4
+                    minimumBuffer * 2,
+                    BUFFER_SIZE * 2
                 )
 
-            val record =
+            audioRecord =
                 AudioRecord.Builder()
-                    .setAudioFormat(audioFormat)
-                    .setBufferSizeInBytes(bufferSize)
+                    .setAudioFormat(format)
+                    .setBufferSizeInBytes(
+                        bufferSize
+                    )
                     .setAudioPlaybackCaptureConfig(
-                        audioConfig
+                        playbackConfig
                     )
                     .build()
 
-            if (record.state != AudioRecord.STATE_INITIALIZED) {
-                record.release()
+            if (
+                audioRecord?.state !=
+                AudioRecord.STATE_INITIALIZED
+            ) {
+                stop()
                 return false
             }
 
-            audioRecord = record
+            audioRecord?.startRecording()
 
-            smoothedBands =
-                FloatArray(BAND_COUNT)
+            if (
+                audioRecord?.recordingState !=
+                AudioRecord.RECORDSTATE_RECORDING
+            ) {
+                stop()
+                return false
+            }
 
-            lastBass = 0f
-
-            record.startRecording()
+            running = true
 
             _isCapturing.value = true
 
             captureJob =
-                CoroutineScope(Dispatchers.Default).launch {
+                CoroutineScope(
+                    Dispatchers.Default
+                ).launch {
 
-                    val samples =
-                        ShortArray(FFT_SIZE)
-
-                    while (
-                        isActive &&
-                        _isCapturing.value
-                    ) {
-
-                        var totalRead = 0
-
-                        while (
-                            totalRead < FFT_SIZE &&
-                            isActive &&
-                            _isCapturing.value
-                        ) {
-
-                            val read =
-                                record.read(
-                                    samples,
-                                    totalRead,
-                                    FFT_SIZE -
-                                        totalRead,
-                                    AudioRecord.READ_BLOCKING
-                                )
-
-                            if (read <= 0) {
-                                break
-                            }
-
-                            totalRead += read
-                        }
-
-                        if (totalRead == FFT_SIZE) {
-                            processAudio(samples)
-                        }
-                    }
+                    captureAudio(
+                        bufferSize
+                    )
                 }
 
             true
 
-        } catch (_: SecurityException) {
+        } catch (
+            _: SecurityException
+        ) {
 
             stop()
             false
 
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
 
             stop()
             false
         }
     }
 
-    private fun processAudio(
-        samples: ShortArray
+    private suspend fun captureAudio(
+        bufferSize: Int
     ) {
 
-        val real =
-            DoubleArray(FFT_SIZE)
-
-        val imag =
-            DoubleArray(FFT_SIZE)
-
-        for (i in 0 until FFT_SIZE) {
-
-            val sample =
-                samples[i] / 32768.0
-
-            // Hann window
-            val window =
-                0.5 *
-                    (
-                        1.0 -
-                            cos(
-                                2.0 *
-                                    PI *
-                                    i /
-                                    (FFT_SIZE - 1)
-                            )
-                        )
-
-            real[i] =
-                sample * window
-
-            imag[i] = 0.0
-        }
-
-        fft(
-            real,
-            imag
-        )
-
-        val magnitudes =
-            DoubleArray(
-                FFT_SIZE / 2
+        val samples =
+            ShortArray(
+                BUFFER_SIZE
             )
 
-        for (i in magnitudes.indices) {
+        val previousBands =
+            FloatArray(
+                BAND_COUNT
+            )
 
-            val magnitude =
-                sqrt(
-                    real[i] * real[i] +
-                        imag[i] * imag[i]
-                )
+        while (
+            isActive &&
+            running
+        ) {
 
-            magnitudes[i] =
-                magnitude /
-                    (FFT_SIZE / 2)
+            val read =
+                try {
+
+                    audioRecord?.read(
+                        samples,
+                        0,
+                        samples.size,
+                        AudioRecord.READ_BLOCKING
+                    ) ?: -1
+
+                } catch (
+                    _: Exception
+                ) {
+
+                    -1
+                }
+
+            if (read <= 0) {
+                continue
+            }
+
+            calculateBands(
+                samples,
+                read,
+                previousBands
+            )
+        }
+    }
+
+    private fun calculateBands(
+        samples: ShortArray,
+        sampleCount: Int,
+        previous: FloatArray
+    ) {
+
+        if (sampleCount <= 0) {
+            return
         }
 
         val output =
-            FloatArray(BAND_COUNT)
+            FloatArray(
+                BAND_COUNT
+            )
 
-        val nyquist =
-            SAMPLE_RATE / 2.0
+        /*
+         * First calculate overall RMS.
+         * This gives us a reliable indication
+         * that music is actually playing.
+         */
+        var energy = 0.0
 
-        for (band in 0 until BAND_COUNT) {
+        for (i in 0 until sampleCount) {
 
-            val lowFrequency =
-                20.0 *
-                    Math.pow(
-                        nyquist / 20.0,
-                        band.toDouble() /
-                            BAND_COUNT
-                    )
+            val value =
+                samples[i].toDouble() /
+                    32768.0
 
-            val highFrequency =
-                20.0 *
-                    Math.pow(
-                        nyquist / 20.0,
-                        (band + 1).toDouble() /
-                            BAND_COUNT
-                    )
+            energy +=
+                value * value
+        }
 
-            val lowBin =
-                (
-                    lowFrequency /
-                        SAMPLE_RATE *
-                        FFT_SIZE
-                    ).toInt()
-                        .coerceIn(
-                            1,
-                            magnitudes.lastIndex
-                        )
+        val rms =
+            sqrt(
+                energy /
+                    sampleCount
+            )
 
-            val highBin =
-                (
-                    highFrequency /
-                        SAMPLE_RATE *
-                        FFT_SIZE
-                    ).toInt()
-                        .coerceIn(
-                            lowBin,
-                            magnitudes.lastIndex
-                        )
-
-            var sum = 0.0
-            var count = 0
-
-            for (bin in lowBin..highBin) {
-
-                sum += magnitudes[bin]
-                count++
-            }
-
-            val average =
-                if (count > 0) {
-                    sum / count
-                } else {
-                    0.0
-                }
-
-            // Log-style amplification so quiet music
-            // still produces useful visual movement.
-            val amplified =
-                (
-                    average * 38.0
-                ).coerceIn(
+        /*
+         * Convert PCM into a normalized level.
+         */
+        val level =
+            (
+                rms * 8.0
+            )
+                .coerceIn(
                     0.0,
                     1.0
                 )
+                .toFloat()
 
-            output[band] =
-                amplified.toFloat()
-        }
+        /*
+         * 64 frequency bands.
+         *
+         * This is a lightweight DFT-style
+         * analyser. It isn't intended to be
+         * an audiophile spectrum analyser;
+         * it is designed to provide smooth,
+         * responsive visualizer data.
+         */
+        val maxFrequency =
+            SAMPLE_RATE / 2.0
 
-        // Additional bass energy measurement.
-        var bassSum = 0.0
-        var bassCount = 0
+        for (
+            band in 0 until BAND_COUNT
+        ) {
 
-        for (bin in 1 until magnitudes.size) {
+            val lowFrequency =
+                25.0 +
+                    (
+                        maxFrequency -
+                            25.0
+                        ) *
+                    band.toDouble() /
+                    BAND_COUNT
+
+            val highFrequency =
+                25.0 +
+                    (
+                        maxFrequency -
+                            25.0
+                        ) *
+                    (band + 1).toDouble() /
+                    BAND_COUNT
 
             val frequency =
-                bin.toDouble() *
-                    SAMPLE_RATE /
-                    FFT_SIZE
-
-            if (
-                frequency >= 30.0 &&
-                frequency <= 180.0
-            ) {
-
-                bassSum +=
-                    magnitudes[bin]
-
-                bassCount++
-            }
-        }
-
-        val bass =
-            if (bassCount > 0) {
                 (
-                    bassSum /
-                        bassCount *
-                        65.0
-                    ).coerceIn(
-                        0.0,
-                        1.0
-                    ).toFloat()
-            } else {
-                0f
-            }
+                    lowFrequency +
+                        highFrequency
+                    ) / 2.0
 
-        // Smooth the spectrum.
-        for (i in output.indices) {
+            val omega =
+                2.0 *
+                    PI *
+                    frequency /
+                    SAMPLE_RATE
 
-            val previous =
-                smoothedBands[i]
+            var real = 0.0
+            var imag = 0.0
 
-            val target =
-                output[i]
-
-            val speed =
-                if (target > previous) {
-                    0.55f
-                } else {
-                    0.18f
-                }
-
-            smoothedBands[i] =
-                previous +
-                    (
-                        target -
-                            previous
-                        ) *
-                    speed
-        }
-
-        val bassSmoothed =
-            lastBass +
-                (
-                    bass -
-                        lastBass
-                    ) *
-                    if (bass > lastBass) {
-                        0.65f
-                    } else {
-                        0.20f
-                    }
-
-        lastBass =
-            bassSmoothed
-
-        _bands.value =
-            smoothedBands.copyOf()
-    }
-
-    private fun fft(
-        real: DoubleArray,
-        imag: DoubleArray
-    ) {
-
-        val n = real.size
-
-        var j = 0
-
-        for (i in 1 until n) {
-
-            var bit =
-                n shr 1
-
-            while (
-                j and bit != 0
-            ) {
-
-                j =
-                    j xor bit
-
-                bit =
-                    bit shr 1
-            }
-
-            j =
-                j xor bit
-
-            if (i < j) {
-
-                val realTemp =
-                    real[i]
-
-                real[i] =
-                    real[j]
-
-                real[j] =
-                    realTemp
-
-                val imagTemp =
-                    imag[i]
-
-                imag[i] =
-                    imag[j]
-
-                imag[j] =
-                    imagTemp
-            }
-        }
-
-        var length = 2
-
-        while (length <= n) {
-
-            val angle =
-                -2.0 *
-                    PI /
-                    length
-
-            val wLengthReal =
-                cos(angle)
-
-            val wLengthImag =
-                kotlin.math.sin(angle)
-
+            /*
+             * Sample every second PCM
+             * value for performance.
+             */
             var i = 0
 
-            while (i < n) {
+            while (
+                i < sampleCount
+            ) {
 
-                var wReal = 1.0
-                var wImag = 0.0
+                val sample =
+                    samples[i].toDouble() /
+                        32768.0
 
-                for (
-                    k in 0 until length / 2
-                ) {
+                val angle =
+                    omega * i
 
-                    val even =
-                        i + k
+                real +=
+                    sample *
+                        cos(angle)
 
-                    val odd =
-                        i +
-                            k +
-                            length / 2
+                imag +=
+                    sample *
+                        kotlin.math.sin(
+                            angle
+                        )
 
-                    val oddReal =
-                        real[odd] *
-                            wReal -
-                            imag[odd] *
-                            wImag
-
-                    val oddImag =
-                        real[odd] *
-                            wImag +
-                            imag[odd] *
-                            wReal
-
-                    real[odd] =
-                        real[even] -
-                            oddReal
-
-                    imag[odd] =
-                        imag[even] -
-                            oddImag
-
-                    real[even] +=
-                        oddReal
-
-                    imag[even] +=
-                        oddImag
-
-                    val nextWReal =
-                        wReal *
-                            wLengthReal -
-                            wImag *
-                            wLengthImag
-
-                    wImag =
-                        wReal *
-                            wLengthImag +
-                            wImag *
-                            wLengthReal
-
-                    wReal =
-                        nextWReal
-                }
-
-                i += length
+                i += 2
             }
 
-            length =
-                length shl 1
+            val magnitude =
+                sqrt(
+                    real * real +
+                        imag * imag
+                ) /
+                    (
+                        sampleCount / 2.0
+                    )
+
+            val normalized =
+                (
+                    magnitude * 14.0
+                )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
+                    .toFloat()
+
+            /*
+             * Bass gets extra weight.
+             */
+            val bassBoost =
+                if (band < 12) {
+                    1.25f
+                } else {
+                    1f
+                }
+
+            output[band] =
+                (
+                    normalized *
+                        bassBoost
+                )
+                    .coerceIn(
+                        0f,
+                        1f
+                    )
         }
+
+        /*
+         * If the spectrum calculation is
+         * extremely quiet, retain a small
+         * amount of the overall RMS so that
+         * the visualizer still reacts.
+         */
+        for (
+            i in output.indices
+        ) {
+
+            val fallback =
+                level *
+                    (
+                        0.35f +
+                            0.65f *
+                            (
+                                1f -
+                                    i.toFloat() /
+                                    BAND_COUNT
+                                )
+                        )
+
+            output[i] =
+                maxOf(
+                    output[i],
+                    fallback
+                )
+        }
+
+        /*
+         * Attack/release smoothing.
+         *
+         * Fast attack = punchy bass.
+         * Slow release = no ugly flickering.
+         */
+        for (
+            i in output.indices
+        ) {
+
+            val current =
+                output[i]
+
+            val old =
+                previous[i]
+
+            previous[i] =
+                if (
+                    current > old
+                ) {
+
+                    old +
+                        (
+                            current -
+                                old
+                            ) *
+                            0.65f
+
+                } else {
+
+                    old +
+                        (
+                            current -
+                                old
+                            ) *
+                            0.16f
+                }
+        }
+
+        _bands.value =
+            previous.copyOf()
     }
 
     fun stop() {
+
+        running = false
 
         _isCapturing.value =
             false
 
         captureJob?.cancel()
+
         captureJob = null
 
         try {
             audioRecord?.stop()
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
         }
 
         try {
             audioRecord?.release()
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
         }
 
         audioRecord = null
 
         try {
             mediaProjection?.stop()
-        } catch (_: Exception) {
+        } catch (
+            _: Exception
+        ) {
         }
 
         mediaProjection = null
 
-        smoothedBands =
-            FloatArray(BAND_COUNT)
+        _bands.value =
+            FloatArray(
+                BAND_COUNT
+            )
+    }
 
-        lastBass = 0f
+    fun setBands(
+        values: FloatArray
+    ) {
+
+        val output =
+            FloatArray(
+                BAND_COUNT
+            )
+
+        val count =
+            minOf(
+                values.size,
+                BAND_COUNT
+            )
+
+        for (
+            i in 0 until count
+        ) {
+
+            output[i] =
+                values[i]
+                    .coerceIn(
+                        0f,
+                        1f
+                    )
+        }
 
         _bands.value =
-            FloatArray(BAND_COUNT)
+            output
     }
-}
-
-
-/*
- * Small application-context holder so the singleton can create
- * AudioPlaybackCaptureConfiguration without changing MainActivity.
- */
-object AppContextHolder {
-
-    var context: android.content.Context? = null
 }
